@@ -14,11 +14,7 @@
 #define VFOB    1
 #define VFOMAX  2
 
-#define VFO_SHIFT       600000
-#define VFO_START    144000000
-#define VFO_END      147999000
-#define VFO_STEP_10KHz   10000
-#define VFO_STEP_5KHz     5000
+
 
 #include "Arduino.h"
 typedef void (*CALLBACK)();
@@ -43,18 +39,21 @@ class VFOSystem
   public: 
   
       VFOSystem(CALLBACK c,CALLBACK t);
+      
       void setVFO(byte VFO);
       void setVFOFreq(byte VFO,long int fVFO);
       void setVFOShift(byte VFO,long int shiftVFO);
       void setVFOStep(byte VFO,long int stepVFO);
       void setVFOBand(byte VFO,long int fMIN, long int fMAX);
+      
       boolean isVFOChanged(byte VFO);
+
+      void resetVFO(byte VFO);
       void resetVFOFreq(byte VFO);
       void computeVFO(long int f, FSTR* v);
-      void equalVFO(byte VFO);
 
       void getStr(byte VFO);
-      void updateVFO(boolean CW, boolean CCW);
+      void updateVFO(byte VFO, long int vstep);
       long int getVFOFreq(byte VFO);
       void tx(boolean s);
       
@@ -163,7 +162,7 @@ void VFOSystem::setVFOFreq(byte VFO,long int fVFO) {
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO Frequency
 //*---------------------------------------------------------------------------------------------------
-void VFOSystem::equalVFO(byte VFO) {
+void VFOSystem::resetVFO(byte VFO) {
   
   if (VFO<VFOA || VFO>VFOB) { return;}
   
@@ -254,9 +253,10 @@ boolean VFOSystem::isVFOChanged(byte VFO) {
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO
 //*---------------------------------------------------------------------------------------------------
-void VFOSystem::updateVFO(boolean CW, boolean CCW) {
+void VFOSystem::updateVFO(byte VFO,long int vstep) {
 
-  
+   vfo[VFO]=vfo[VFO]+vstep;
+/*  
   if (CW==true) {
        vfo[vfoAB] = vfo[vfoAB] + vfostep[vfoAB];
    }
@@ -264,20 +264,21 @@ void VFOSystem::updateVFO(boolean CW, boolean CCW) {
    if (CCW==true) {    
        vfo[vfoAB] = vfo[vfoAB] - vfostep[vfoAB];
    }  
-       
-   if (vfo[vfoAB] > vfomax[vfoAB]) {
-       vfo[vfoAB] = vfomax[vfoAB];
+*/       
+   if (vfo[VFO] > vfomax[VFO]) {
+       vfo[VFO] = vfomax[VFO];
    } // UPPER VFO LIMIT
        
-   if (vfo[vfoAB] < vfomin[vfoAB]) {
-       vfo[vfoAB] = vfomin[vfoAB];
+   if (vfo[VFO] < vfomin[VFO]) {
+       vfo[VFO] = vfomin[VFO];
    } // LOWER VFO LIMIT
 
-   getStr(vfoAB);
+   getStr(VFO);
 
-   if (vfo[vfoAB]!=_rxa[vfoAB]) {
-       _rxa[vfoAB]=vfo[vfoAB];
-       if (changeVFO!=NULL) {changeVFO();}
+   if (vfo[VFO]!=_rxa[VFO]) {
+       //_rxa[vfoAB]=vfo[vfoAB];
+       if (changeVFO!=NULL) {
+          changeVFO();}
 
    }
 

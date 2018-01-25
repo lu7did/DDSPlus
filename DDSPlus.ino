@@ -37,7 +37,7 @@
 
 #define DEBUG         false
 #define PICOFM        true
-#include "VFOSystem.h"
+
 
 //*--- Program & version identification
 
@@ -103,12 +103,18 @@ int     SQLSig=0;
 #define VOLUME           5
 
 #if PICOFM
+
 //*--- Control lines for the DRA818V
 
 #define PTTPin          13
 #define HLPin           12
 #define PDPin           11
 
+#define VFO_SHIFT       600000
+#define VFO_START    144000000
+#define VFO_END      147990000
+#define VFO_STEP_10KHz   10000
+#define VFO_STEP_5KHz     5000
 #endif
 
 
@@ -167,14 +173,6 @@ typedef struct
 
 #if PICOFM
 
-//*--- Definition for VFO parameters and limits
-//#define VFOA   0
-//#define VFOB   1
-//#define VFO_SHIFT    600000
-//#define VFO_START 144000000
-//#define VFO_END   147999000
-//#define VFO_STEP_10KHz 10000
-//#define VFO_STEP_5KHz   5000
 
 #define FORCEFREQ     0
 #define LCD_ON        1
@@ -187,46 +185,16 @@ typedef struct
 #include <LiquidCrystal.h>
 #include <stdio.h>
 #include <EEPROM.h>
-#include <avr/pgmspace.h>
+#include "MemSizeLib.h"
+#include "VFOSystem.h"
 
+//*-------------------------------------------------------------------------------------------------
+//* Define class to manage VFO
+//*-------------------------------------------------------------------------------------------------
 void  Encoder_san();
+void showFreq();   //Prototype fur display used on callback
+VFOSystem vx(showFreq,NULL);
 
-//*--------------------------------------------------------------------------------------------------
-//* Memory management
-//*--------------------------------------------------------------------------------------------------
-extern unsigned int __heap_start;
-extern void *__brkval;
-
-/*
- * The free list structure as maintained by the
- * avr-libc memory allocation routines.
- */
-struct __freelist
-{
-  size_t sz;
-  struct __freelist *nx;
-};
-
-/* The head of the free list structure */
-extern struct __freelist *__flp;
-//*==============================================================================================================================
-// MemoryFree library based on code posted here:
-// http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1213583720/15
-// Extended by Matthew Murdoch to include walking of the free list.
-
-#ifndef  MEMORY_FREE_H
-#define MEMORY_FREE_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int freeMemory();
-
-#ifdef  __cplusplus
-}
-#endif
-#endif
 
 #if PICOFM
 //*==============================================================================================================================
@@ -308,9 +276,7 @@ byte RX[8] = {
        #define btnEncodeOK  6
         
 //*---------------------- Custom fonts for the LCD display
-extern unsigned int __bss_end;
-extern unsigned int __heap_start;
-extern void *__brkval;
+
 
 
 #if PICOFM
@@ -436,23 +402,7 @@ byte ones, tens, hundreds, thousands, tenthousands, hundredthousands, millions ;
 int_fast32_t timepassed = millis(); // int to hold the arduino miilis since startup
 int_fast32_t menupassed = millis();
 
-#if PICOFM
-
-void showFreq();   //Prototype fur display used on callback
-
-VFOSystem vx(showFreq,NULL);
-
-//long int vfo[VFOMAX];
-//long int rxa;
-//long int vfoshift=VFO_SHIFT;
-//long int vfostep=VFO_STEP_10KHz;
-//byte     vfoAB=VFOA;
-
 int      memstatus   = 1;           // value to notify if memory is current or old. 0=old, 1=current.
-
-#endif
-
-
 
 
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -539,13 +489,7 @@ void setup() {
 
   SQLSig=readV(SQLPIN,SQLMAX,SQLSCALE);
   
-  //vfo[VFOA]=VFO_START;
-  //vfo[VFOB]=VFO_START;
-  //vfoshift=VFO_SHIFT;
-  //vfostep=VFO_STEP_10KHz;
-  //rxa=0;
-
-
+ 
     
 //*--- initializes the frequency step for both VFO A & B
 //*--- Interrupt manipulation
@@ -693,10 +637,10 @@ void setup() {
      SQLSig = String(EEPROM.read(0)).toInt();
      String freq = String(EEPROM.read(1)) + String(EEPROM.read(2)) + String(EEPROM.read(3)) + String(EEPROM.read(4)) + String(EEPROM.read(5)) + String(EEPROM.read(6)) + String(EEPROM.read(7));
             vx.vfo[VFOA] = freq.toInt();
+            
             freq = String(EEPROM.read(8)) + String(EEPROM.read(9)) + String(EEPROM.read(10)) + String(EEPROM.read(11)) + String(EEPROM.read(12)) + String(EEPROM.read(13)) + String(EEPROM.read(14));
             vx.vfo[VFOB] = freq.toInt();
-
-            vx.vfoAB = EEPROM.read(15);
+            vx.vfoAB = EEPROM.read(15);        
             
             pwrMenu.mItem = EEPROM.read(16);
             wdogMenu.mItem= EEPROM.read(17);
@@ -715,15 +659,20 @@ void setup() {
             USW = EEPROM.read(28);
             TSW = EEPROM.read(29);
 
-            //char hi[80];
-            //sprintf(hi,"%9d %9d",vfo[VFOA],vfo[VFOB]);
-            //Serial.println(hi);
-
   } 
+//*--------- Attempt to establish contact with the DRA018F module
+  
+  doHandShake();
+  doSetVolume();
+  doSetFilter();
+  doSetGroup();
 
-
- 
-
+  showPanel();
+//*--------- Update SQL
+     
+  int s=readV(SQLPIN,SQLMAX,SQLSCALE);
+  SQLSig=s;
+  
 //*=========================================================================================================
 #if DEBUG
 //*--- Print Serial Banner (TEST Mode Mostly)
@@ -736,37 +685,6 @@ void setup() {
 #endif
 //*=========================================================================================================
 
-}
-//*==============================================================================================================
-//* Calculates the size of the free list                                                                        */
-//*==============================================================================================================
-//*--- freeListSize
-int freeListSize()
-{
-  struct __freelist* current;
-  int total = 0;
-  for (current = __flp; current; current = current->nx)
-  {
-    total += 2; /* Add two bytes for the memory block's header  */
-    total += (int) current->sz;
-  }
-
-  return total;
-}
-//*--- Total Free memory
-int freeMemory()
-{
-  int free_memory;
-  if ((int)__brkval == 0)
-  {
-    free_memory = ((int)&free_memory) - ((int)&__heap_start);
-  }
-  else
-  {
-    free_memory = ((int)&free_memory) - ((int)__brkval);
-    free_memory += freeListSize();
-  }
-  return free_memory;
 }
 
 //*****************************************************************************************************
@@ -847,49 +765,34 @@ void splitFreq(long int fx) {
   
 }
 //*--------------------------------------------------------------------------------------------
-//* computeFreq
-//* decompose frequency
-//*--------------------------------------------------------------------------------------------
-void computeFreq(byte b) {
-     
-     if (getWord(MSW,PTT)==false) {
-        //vx.computeVFO(getFreq(vx.vfo[b],rptMenu.mItem));  //REVISAR
-        //splitFreq(getFreq(vfo[b],rptMenu.mItem));
-     
-     } else {
-      //splitFreq(vfo[b]);   
-      //vx.computeVFO(vx.vfo[b]);   //REVISAR
-     } 
-}     
-//*--------------------------------------------------------------------------------------------
-//* printFreq
+//* showFreq
 //* show frequency at the display
 //*--------------------------------------------------------------------------------------------
-void printFreq() {
+void showFreq() {
 
-  if (vx.vfostr[vx.vfoAB].millions > 9) {
+  FSTR v;
+   
+  long int f=vx.vfo[vx.vfoAB];
+  
+  if (getWord(MSW,PTT)==false) {
+     f=getFreq(f,vx.vfoshift[vx.vfoAB],rptMenu.mItem);
+  }
+
+  vx.computeVFO(f,&v);
+  
+  if (v.millions > 9) {
     lcd.setCursor(2, 1);
   }
   else {
     lcd.setCursor(3, 1);
   }
 
-  lcd.print(vx.vfostr[vx.vfoAB].millions);
+  
+  lcd.print(v.millions);
   lcd.print(".");
-  lcd.print(vx.vfostr[vx.vfoAB].hundredthousands);
-  lcd.print(vx.vfostr[vx.vfoAB].tenthousands);
-  lcd.print(vx.vfostr[vx.vfoAB].thousands);
-
-}
-//*--------------------------------------------------------------------------------------------
-//* showFreq
-//* show frequency at the display
-//*--------------------------------------------------------------------------------------------
-void showFreq() {
-
-  //vx.computeVFO(vfoAB);
-  printFreq();  
-
+  lcd.print(v.hundredthousands);
+  lcd.print(v.tenthousands);
+  lcd.print(v.thousands);
   timepassed = millis();
   memstatus = 0; // Trigger memory write
 
@@ -1365,59 +1268,47 @@ void restoreFSM() {
 //* processVFO
 //* come here to update the VFO
 //*----------------------------------------------------------------------------------------------------
-void processVFO(long int step) {
+void processVFO() {
 
    if (getWord(USW,BCW)==true) {
-       vx.updateVFO(getWord(USW,BCW),getWord(USW,BCCW));
-       //vfo[vfoAB] = vfo[vfoAB] + step;
-       Serial.println("BCW");
+       vx.updateVFO(vx.vfoAB,vx.vfostep[vx.vfoAB]);
        lcd.setCursor(0,1);
        lcd.print((char)126);
+   
    }
    
-   if (getWord(USW,BCCW)==true) {    
-       //vfo[vfoAB] = vfo[vfoAB] - step;
-       vx.updateVFO(getWord(USW,BCW),getWord(USW,BCCW));
-       Serial.println("BCCW");
+   if (getWord(USW,BCCW)==true) {
+       vx.updateVFO(vx.vfoAB,-vx.vfostep[vx.vfoAB]); 
        lcd.setCursor(0,1);
        lcd.print((char)127);
-
+   
    }
    
    T4=LCD_DELAY;
-/*       
-   if (vfo[vfoAB] > VFO_END) {
-       vfo[vfoAB] = VFO_END;
-   } // UPPER VFO LIMIT
-       
-   if (vfo[vfoAB] < VFO_START) {
-       vfo[vfoAB] = VFO_START;
-   } // LOWER VFO LIMIT
-*/
  
 }
 //*----------------------------------------[LCD_FSM]---------------------------------------------------
 //* Get the right Freq based on the transmission status and shift applied
 //*--------------------------------------------------------------------------------------------------
-long int getFreq(long int v, byte r) {
+long int getFreq(long int f, long int s, byte r) {
 
     switch(r) {
 
     case 0 : {
-              return v;
+              return f;
               break;
              }
     case 1 : {
-              return v+vx.vfoshift[vx.vfoAB];
+              return f+s;
               break;
              }
     case 2 : {
-              return v-vx.vfoshift[vx.vfoAB];
+              return f-s;
               break;
              }
     
   }
-  return v;
+  return f;
   
 }
 //*----------------------------------------[LCD_FSM]---------------------------------------------------
@@ -1482,42 +1373,53 @@ void CMD_FSM() {
    readKeyShield();
 
    //*-------------------------------------------------------------------------
+   //* Operate Watchdog
+   //*-------------------------------------------------------------------------
        if (getWord(TSW,FDOG)==true && wdogMenu.mItem !=0) {
           setWord(&TSW,FDOG,false);
           setWord(&MSW,DOG,true);
           digitalWrite(PTTPin,LOW);
-          if (getFreq(vx.vfo[vx.vfoAB],rptMenu.mItem)!=vx.vfo[vx.vfoAB]) {
+          if (getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rptMenu.mItem)!=vx.vfo[vx.vfoAB]) {
              showFreq();
           }
         
           showPTT();        
        }
 
-   //*-------------------------------------------------------------------------
+   //*-------------------------------------------------------------------------------
+   //* Handle PTT  (detect MIC PTT pressed and PTT signal not activated) just pressed
+   //*-------------------------------------------------------------------------------
        if (digitalRead(A4)==LOW && getWord(MSW,PTT)==true){
+        
            setWord(&MSW,PTT,false);
            digitalWrite(PTTPin,HIGH);    //*-- Prende TX
-           if (getFreq(vx.vfo[vx.vfoAB],rptMenu.mItem)!=vx.vfo[vx.vfoAB]) {
+           
+           if (getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rptMenu.mItem)!=vx.vfo[vx.vfoAB]) {
              showFreq();
            }
 
            digitalWrite(10,LCD_ON);
            TDIM=DIM_DELAY; 
+           
            if (wdogMenu.mItem!=0) {TDOG=DOG_DELAY;}
+           
            setWord(&MSW,DOG,false);
            showPTT();
+           
        } else {
+        
           if (digitalRead(A4)==HIGH && getWord(MSW,PTT)==false) {
+              
               setWord(&MSW,PTT,true);
               digitalWrite(PTTPin,LOW);   //*-- Apaga TX
-              if (getFreq(vx.vfo[vx.vfoAB],rptMenu.mItem)!=vx.vfo[vx.vfoAB]) {
-                 showFreq();
-              }
-
+              showFreq();
               setWord(&MSW,DOG,false);
               showPTT();
+          
           }   
        }
+    //*-------------------------------------------------------------------------
+    //* Handle squelch
     //*-------------------------------------------------------------------------
        if (digitalRead(A3)==LOW && getWord(MSW,SQL)==false && getWord(MSW,PTT)==true){
            setWord(&MSW,SQL,true);
@@ -1529,7 +1431,10 @@ void CMD_FSM() {
           }   
        }
    //*-------------------------------------------------------------------------
+   //* PTT == true means not activated (RX mode)
+   //*-------------------------------------------------------------------------
    if (getWord(MSW,PTT) == true) {
+    
      int s=readV(SQLPIN,SQLMAX,SQLSCALE);
 
      if (s != SQLSig) {
@@ -1539,9 +1444,6 @@ void CMD_FSM() {
         setWord(&TSW,FTS,false);
      } else { 
        if (getWord(TSW,FTS)==true) {
-           //sprintf(hi,"TO s=%3d SQLSig=%3d",s,SQLSig);
-           //Serial.println(hi);
-
            doSetGroup();           //* Call DMOSETUPGROUP to establish current SQL Level
            showPanel();
            memstatus=0;
@@ -1552,19 +1454,23 @@ void CMD_FSM() {
    }
    
 //*-----------------------------------------------------------------------------
-//* Menu management with KEY Shield
+//* Menu management with KEY Shield cualquier cambio enciende LED
 //*-----------------------------------------------------------------------------
 
    if ( getWord(USW,BMULTI)==true ||
         getWord(USW,BCW)==true    ||
         getWord(USW,BCCW)==true   ||
         getWord(MSW,LCLK)==true ) {
+          
         digitalWrite(10,LCD_ON);
         TDIM=DIM_DELAY; 
    }
 
-
+//*------------------------------------------------------------------------------
+//* If PTT==false (TX) clear all signals, thus disable any activity of the keys
+//*------------------------------------------------------------------------------
    if (getWord(MSW,PTT)==false) {
+    
       setWord(&USW,BMULTI,false);
       setWord(&USW,BCCW,false);
       setWord(&USW,BCW,false);
@@ -1573,27 +1479,38 @@ void CMD_FSM() {
       setWord(&JSW,JRIGHT,false);
       setWord(&JSW,JUP,false);
       setWord(&JSW,JDOWN,false);
+      
    }
 
-
+//*-------------------------------------------------------------------------------
+//* PTT==true (RX) and CMD==false (VFO)
+//*-------------------------------------------------------------------------------
    if (getWord(MSW,CMD)==false && getWord(MSW,PTT)==true) {      //S=0 VFO Mode   
 
+//*-------------------------------------------------------------------------------
+//*---- Process KEYLEFT
+//*-------------------------------------------------------------------------------
+
       if (getWord(JSW,JLEFT)==true) {
+        
          setWord(&JSW,JLEFT,false);
          setWord(&USW,BCCW,true);
          T4=LCD_DELAY;
-         processVFO(1000000);
+         vx.updateVFO(vx.vfoAB,-1000000);
          setWord(&USW,BCW,false);
          setWord(&USW,BCCW,false);
 
          return;
       }
 
+//*---- Process KEYRIGHT
+
       if (getWord(JSW,JRIGHT)==true) {
+        
          setWord(&JSW,JRIGHT,false);
          setWord(&USW,BCW,true);
          T4=LCD_DELAY;
-         processVFO(1000000);
+         vx.updateVFO(vx.vfoAB,+1000000);
          setWord(&USW,BCW,false);
          setWord(&USW,BCCW,false);
 
@@ -1601,7 +1518,10 @@ void CMD_FSM() {
 
       }
 
+//*---- Process KEYUP
+
       if (getWord(JSW,JUP)==true) {
+         
          setWord(&JSW,JUP,false);
          vfoMenu.mItem=(vfoMenu.mItem+1) % 2;
          vx.vfoAB=vfoMenu.mItem;
@@ -1611,6 +1531,8 @@ void CMD_FSM() {
          return;
 
       }
+
+//*---- Process KEYDOWN
 
       if (getWord(JSW,JDOWN)==true) {
          setWord(&JSW,JDOWN,false);
@@ -1622,6 +1544,11 @@ void CMD_FSM() {
 
          return;
       }
+      
+//*----------------------------------------------------------------------------
+//*---- Process MULTI Button (VFO Mode)
+//*----------------------------------------------------------------------------
+      
       if (getWord(USW,BMULTI)==true) { //S (0)->(1) enter CMD mode
          
          setWord(&MSW,CMD,true);
@@ -1634,13 +1561,29 @@ void CMD_FSM() {
 
          return;
       }
+
+
+//*----------------------------------------------------------------------------
+//*---- Erase the GUI update mark after a timeout
+//*----------------------------------------------------------------------------     
+
       if (getWord(TSW,FT4)) {  //Clear GUI clue if present
          lcd.setCursor(0,1);
          lcd.print(" ");
          setWord(&TSW,FT4,false);
       }
+      
+//*--------------------------------------------------------------------------------------
+//*---- Process rotation of VFO encoder   (VFO Mode)
+//*--------------------------------------------------------------------------------------
+      
       if (getWord(USW,BCW)== true || getWord(USW,BCCW)== true) { //S=0 operates VFO and clear signals
-         processVFO(vx.vfostep[vx.vfoAB]);
+         processVFO();
+      }
+
+      if (vx.isVFOChanged(vx.vfoAB)==true) {
+         doSetGroup();
+         vx.resetVFO(vx.vfoAB);
       }
        
        setWord(&USW,BCW,false);
@@ -1648,7 +1591,9 @@ void CMD_FSM() {
        return;             
 
    }
-
+//******************************************************************************************
+//* Process menu commands
+//******************************************************************************************
 //*---- If here is in S=1 or higher (CMD mode)
    
    if (getWord(MSW,GUI)==false && getWord(MSW,PTT)==true) {   //S=1 pure command mode
@@ -1734,35 +1679,17 @@ void CMD_FSM() {
 //* send commands related to setup group information
 //*--------------------------------------------------------------------------------------------
 void doSetGroup() {
+  FSTR     v;
   
-  /*
-  switch(rptMenu.mItem) {
-
-    case 0 : {
-              splitFreq(vfo[vfoAB]);
-              break;
-             }
-    case 1 : {
-              splitFreq(vfo[vfoAB]+vfoshift);
-              break;
-             }
-    case 2 : {
-              splitFreq(vfo[vfoAB]-vfoshift);
-              break;
-             }
-    
-  }
-  */
-  long int f=getFreq(vx.vfo[vx.vfoAB],rptMenu.mItem); 
-  //vx.computeVFO(f);
+  long int f=getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rptMenu.mItem);
+  vx.computeVFO(f,&v);   
   char hi[40];
-  sprintf(hi,"AT+DMOSETGROUP=%1d,%3d.%1d%1d%1d%1d,",bdwMenu.mItem,vx.vfostr[vx.vfoAB].millions,vx.vfostr[vx.vfoAB].hundredthousands,vx.vfostr[vx.vfoAB].tenthousands,vx.vfostr[vx.vfoAB].thousands,vx.vfostr[vx.vfoAB].hundreds);
+  sprintf(hi,"AT+DMOSETGROUP=%1d,%3d.%1d%1d%1d%1d,",bdwMenu.mItem,v.millions,v.hundredthousands,v.tenthousands,v.thousands,v.hundreds);
   Serial.print(hi);
   
-  //splitFreq(vfo[vfoAB]);
   f=vx.vfo[vx.vfoAB];
-  //vx.computeVFO(vx.vfo[vx.vfoAB]);
-  sprintf(hi,"%3d.%1d%1d%1d%1d,0,%1d,%1d\r\n",vx.vfostr[vx.vfoAB].millions,vx.vfostr[vx.vfoAB].hundredthousands,vx.vfostr[vx.vfoAB].tenthousands,vx.vfostr[vx.vfoAB].thousands,vx.vfostr[vx.vfoAB].hundreds,SQLSig,ctcssMenu.mItem);
+  vx.computeVFO(f,&v); 
+  sprintf(hi,"%3d.%1d%1d%1d%1d,0,%1d,%1d\r\n",v.millions,v.hundredthousands,v.tenthousands,v.thousands,v.hundreds,SQLSig,ctcssMenu.mItem);
   Serial.print(hi);
   
   delay(CMD_DELAY);
@@ -1817,11 +1744,6 @@ byte swapVFO() {
 //*--------------------------------------------------------------------------------------------
 void checkPriority() {
   
-  //char hi[20];
-  //splitFreq(vfo[swapVFO()]);
-  //sprintf(hi,"S+Frequency=%3d.%1d%1d%1d%1d\r\n",millions,hundredthousands,tenthousands,thousands,hundreds);
-  //Serial.print(hi);
-  //setWord(&USW,BUSY,false);
 
   
 }
@@ -2036,10 +1958,13 @@ return ;
 //*--------------------------------------------------------------------------------------------------
 void LCD_FSM() {
 
-
+   
+/*
   //*--- Change frequency detected?
 
   if (vx.isVFOChanged(vx.vfoAB)==true) {
+     
+     
      if (getWord(USW,BBOOT)==true) {
         showPanel();
         setWord(&USW,BBOOT,false);    //bBoot=false;
@@ -2060,23 +1985,19 @@ void LCD_FSM() {
               timepassed=millis();
               return;
              }
-          showFreq();    
-          doSetGroup();
-          vx.equalVFO(vx.vfoAB);
+          //showFreq();    
+          //doSetGroup();
+          //vx.equalVFO(vx.vfoAB);
         }
         
      }
-    //sendFrequency(vfo[VFOA]);
-    //rxa = vfo[vfoAB];
+    showFreq();
+    doSetGroup();
+    vx.resetVFO(vx.vfoAB);
   }
+*/
 
-  //*--- Write memory to EEPROM when it has been quiet for a while (2 secs)
 
-  if (memstatus == 0) {
-    if (timepassed + 2000 < millis()) {
-      storeMEM();
-    }
-  } 
 
   //*--- Logic to sense the SQL reference, if changed display value and then restore once finished
   
@@ -2095,31 +2016,19 @@ void LCD_FSM() {
 //*======================================================================================================
 void loop() {
  
-  //-- Operate only on boot
-  if (getWord(USW,BBOOT)==true) {
-     
-     
-     //*--------- Establish initial conditions
-     //rxa=vfo[vfoAB];
-     showPanel();
-     int s=readV(SQLPIN,SQLMAX,SQLSCALE);
-     SQLSig=s;
-     setWord(&USW,BBOOT,false);      //bBoot=false;
-
-     //*--------- Attempt to establish contact with the DRA018F module
-     doHandShake();
-     doSetVolume();
-     doSetFilter();
-     doSetGroup();
-
-  }
-
+  
     //*--- Handle commands 
   CMD_FSM();
   //*--- Update LCD Display
   LCD_FSM();
  
+  //*--- Write memory to EEPROM when it has been quiet for a while (2 secs)
 
+  if (memstatus == 0) {
+    if (timepassed + 2000 < millis()) {
+      storeMEM();
+    }
+  } 
 }
 //*----------------------------------------[INTERRUPT]---------------------------------------------------
 //*======================================================================================================
