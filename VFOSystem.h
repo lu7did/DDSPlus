@@ -1,7 +1,7 @@
 //*--------------------------------------------------------------------------------------------------
 //* VFOSystem VFO Management Class   (HEADER CLASS)
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseño de VFO para DDS
+//* Este es el firmware del diseÃ±o de VFO para DDS
 //* Solo para uso de radioaficionados, prohibido su utilizacion comercial
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
@@ -49,13 +49,13 @@ class VFOSystem
       boolean isVFOChanged(byte VFO);
 
       void resetVFO(byte VFO);
-      void resetVFOFreq(byte VFO);
+      //void resetVFOFreq(byte VFO);
       void computeVFO(long int f, FSTR* v);
 
       void getStr(byte VFO);
       void updateVFO(byte VFO, long int vstep);
-      long int getVFOFreq(byte VFO);
-      void tx(boolean s);
+      //long int getVFOFreq(byte VFO);
+      //void tx(boolean s);
       
       long int vfo[VFOMAX];
       
@@ -85,7 +85,7 @@ class VFOSystem
 //*--------------------------------------------------------------------------------------------------
 //* VFOSystem VFO Management Class   (CODE)
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseño de VFO para DDS
+//* Este es el firmware del diseÃ±o de VFO para DDS
 //* Solo para uso de radioaficionados, prohibido su utilizacion comercial
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
@@ -133,6 +133,7 @@ void VFOSystem::setVFOBand(byte VFO,long int fMIN,long int fMAX) {
   return;
   
 }
+/*
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO Frequency
 //*---------------------------------------------------------------------------------------------------
@@ -144,6 +145,7 @@ void VFOSystem::resetVFOFreq(byte VFO) {
   
   return;
 }
+*/
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO Frequency
 //*---------------------------------------------------------------------------------------------------
@@ -171,6 +173,7 @@ void VFOSystem::resetVFO(byte VFO) {
   return;
   
 }
+/*
 //*---------------------------------------------------------------------------------------------------
 //* Set the TX mode
 //*---------------------------------------------------------------------------------------------------
@@ -181,6 +184,7 @@ void VFOSystem::tx(boolean s) {
   }   
   
 }
+*/
 //*---------------------------------------------------------------------------------------------------
 //* Set the focus VFO
 //*---------------------------------------------------------------------------------------------------
@@ -218,30 +222,6 @@ void VFOSystem::computeVFO(long int f, FSTR* v) {
    
 }
 //*---------------------------------------------------------------------------------------------------
-//* Get the frequency applying for the rpt and tx mode
-//*---------------------------------------------------------------------------------------------------
-long int VFOSystem::getVFOFreq(byte VFO) {
-    if (VFO<VFOA || VFO>VFOB) { return vfo[vfoAB];}
-    
-    switch(vforpt[VFO]) {
-
-    case 0 : {
-              return vfo[VFO];
-              break;
-             }
-    case 1 : {
-              return vfo[VFO]+vfoshift[VFO];
-              break;
-             }
-    case 2 : {
-              return vfo[VFO]-vfoshift[VFO];
-              break;
-             }
-    
-  }
-  return vfo[VFO];
-}
-//*---------------------------------------------------------------------------------------------------
 //* check if the VFO had changed
 //*---------------------------------------------------------------------------------------------------
 boolean VFOSystem::isVFOChanged(byte VFO) {
@@ -256,15 +236,7 @@ boolean VFOSystem::isVFOChanged(byte VFO) {
 void VFOSystem::updateVFO(byte VFO,long int vstep) {
 
    vfo[VFO]=vfo[VFO]+vstep;
-/*  
-  if (CW==true) {
-       vfo[vfoAB] = vfo[vfoAB] + vfostep[vfoAB];
-   }
-   
-   if (CCW==true) {    
-       vfo[vfoAB] = vfo[vfoAB] - vfostep[vfoAB];
-   }  
-*/       
+
    if (vfo[VFO] > vfomax[VFO]) {
        vfo[VFO] = vfomax[VFO];
    } // UPPER VFO LIMIT
@@ -283,4 +255,6 @@ void VFOSystem::updateVFO(byte VFO,long int vstep) {
    }
 
 }
+
+
 

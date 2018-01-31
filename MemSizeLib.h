@@ -1,3 +1,9 @@
+//*--------------------------------------------------------------------------------------------------
+//* MemSizeLib Version 1.0
+//*--------------------------------------------------------------------------------------------------
+//* Solo para uso de radioaficionados, prohibido su utilizacion comercial
+//* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
+//*--------------------------------------------------------------------------------------------------
 #include <avr/pgmspace.h>
 extern unsigned int __heap_start;
 extern void *__brkval;
@@ -67,4 +73,6 @@ int freeMemory()
   }
   return free_memory;
 }
+
+
 

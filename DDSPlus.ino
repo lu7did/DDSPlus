@@ -1,35 +1,38 @@
 //*--------------------------------------------------------------------------------------------------
 //* DDSPlus Firmware Version 1.0
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseño picoFM en su version inicial
+//* Este es el firmware del diseÃ±o picoFM en su version inicial
 //* Solo para uso de radioaficionados, prohibido su utilizacion comercial
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
 //* Plataforma: Arduino NANO/UNO/Mega
 //* LCD: 16x2 HD44780 o equivalente
 //* Standard Arduino PIN Assignment
-//*   A0 - PushButton
-//*   A1 - Encoder CW
-//*   A2 - Encoder CCW
-//*   A3 - SQ  (sense) Squelch Open
-//*   A4 - PTT (sense)
-//*   A5 - SQL (sense) Squelch Reference
+//*   A0 - LCDKeyShield (Joystick)
+//*   A1 - DDS DATA (reserved)
+//*   A2 - DDS RESET (reserved)
+//*   A3 - PAD CW
+//*   A4 - Power (HI/LO)
+//*   A5 - Meter 
 //*   
 //*   LCD Handling
-//*   D2 - RS
-//*   D3 - E
+//*   D2 - Encoder 
+//*   D3 - Encoder
 //*   D4 - DB4
 //*   D5 - DB5
 //*   D6 - DB6
 //*   D7 - DB7
+//*   D8 - E
+//*   D9 - RW
+//*   D10- BackLigth
 //*
 //*   Transceiver control
-//*   D8 - RxD
-//*   D9 - TxD
-//*   D10- PD
-//*   D11- (free)
-//*   D12- H/L
-//*   D13- PTT (send)
+//*   D0 - RxD
+//*   D1 - TxD
+
+//*   D11- DDS W_CLK (reserved)
+//*   D12- DDS FU_UD (reserved)
+//*   D13- KEYER
 //*
 //*-------------------------------------------------------------------------------------------------------
 //*----- Program Reference data
@@ -45,11 +48,13 @@
 
 #define PROGRAMID "picoFM"
 #define PROG_VERSION   "1.0"
-#define PROG_BUILD  "024"
+#define PROG_BUILD  "025"
 #define COPYRIGHT "(c) LU7DID 2018"
 
 #endif
-
+//*----------------------------------------------------------------------------------
+//*  System Status Word
+//*----------------------------------------------------------------------------------
 //*--- Master System Word (MSW)
 
 #define CMD       B00000001
@@ -90,94 +95,68 @@
 #define JUP       B00000100
 #define JDOWN     B00001000
 
-
+//*------------------------------------------------------------------------------------------------------------
 //*--- Read Squelch control
 
 #define SQLPIN           A5
 #define SQLMAX         1023
 #define SQLSCALE          8
-int     SQLSig=0;
+//int     SQLSig=0;
 
 #define ZERO             0
 #define SERIAL_MAX      16
 #define VOLUME           5
+#define EEPROM_COOKIE  128
 
+//*-----------------------------------------------------------------------------------------------
+//* Control lines and VFO Definition
+//*-----------------------------------------------------------------------------------------------
 #if PICOFM
 
-//*--- Control lines for the DRA818V
 
-#define PTTPin          13
-#define HLPin           12
-#define PDPin           11
+//*--- VFO initialization parameters
 
 #define VFO_SHIFT       600000
 #define VFO_START    144000000
 #define VFO_END      147990000
 #define VFO_STEP_10KHz   10000
 #define VFO_STEP_5KHz     5000
+#define VFO_STEP_1MHZ  1000000
+
 #endif
 
 
 //*----------------------------------------[DEFINITION]----------------------------------------------
-#define DELAY_DISPLAY 4000     //delay to show the initial display in mSecs
 
 //*--- Control delays
 
+#define DELAY_DISPLAY 4000     //delay to show the initial display in mSecs
 #define DELAY_SAVE    1000     //delay to consider the frequency needs to be saved in mSecs
 #define LCD_DELAY     1000
 #define CMD_DELAY      100
 #define PTY_DELAY      200
-#define DIM_DELAY    10000
+#define DIM_DELAY    30000
 #define DOG_DELAY    60000
 #define BLINK_DELAY   1000
-
-#if PICOFM
-//*--------------------------------------------------------------------------------------------------
-typedef struct {
-  char* s;
-} ctcsscode;
-
-#define CTCSSCODEMAX 39
-
-
-#define LONGLAP         200    // Elapsed time to consider a Long Push at the MULTI button
-#define NMAX             12    // Max number of menu items 
-
-typedef struct
-   { 
-    byte       mItem;
-    char*      mText[NMAX];
-   } menu;
-
-#define QUEUEMAX  16        // Queue of incoming characters 
-
-#endif
-
-#if PICOFM
-//*--- Max number of elements in each menu item
-
-#define PWRMAX  2
-#define STPMAX  2
-#define RPTMAX  3
-#define SPDMAX  2
-#define BDWMAX  2
-#define HPFMAX  2
-#define LPFMAX  2
-#define PREMAX  2
-#define TONEMAX 2
-#define CTCMAX 39
-#define VFOMAX  2
-#define PTYMAX  2
-
-#endif
-
-#if PICOFM
-
 
 #define FORCEFREQ     0
 #define LCD_ON        1
 #define LCD_OFF       0
 
+
+//*--------------------------------------------------------------------------------------------------
+//* Definitions to manage DRA818V
+//*--------------------------------------------------------------------------------------------------
+#if PICOFM
+
+#define CTCSSCODEMAX 20
+#define QUEUEMAX  16        // Queue of incoming characters 
+
+//*--- Control lines for the DRA818V
+
+#define PTTPin          13
+#define HLPin           12
+#define PDPin           11
 
 #endif
 
@@ -187,18 +166,22 @@ typedef struct
 #include <EEPROM.h>
 #include "MemSizeLib.h"
 #include "VFOSystem.h"
+#include "ClassMenu.h"
+#include "ClassMeter.h"
+void  Encoder_san();
 
 //*-------------------------------------------------------------------------------------------------
 //* Define class to manage VFO
 //*-------------------------------------------------------------------------------------------------
-void  Encoder_san();
 void showFreq();   //Prototype fur display used on callback
 VFOSystem vx(showFreq,NULL);
 
 
 #if PICOFM
 //*==============================================================================================================================
-byte HALF[8] = {
+//*    DefiniciÃ²n de custom characters
+//*==============================================================================================================================
+byte BB3[8] = {
   B11100,
   B11100,
   B11100,
@@ -209,7 +192,7 @@ byte HALF[8] = {
 };
 
  
-byte FULL[8] = {
+byte BB5[8] = {
   B11111,
   B11111,
   B11111,
@@ -217,6 +200,33 @@ byte FULL[8] = {
   B11111,
   B11111,
   B11111,
+};
+byte BB1[8] = {
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+};
+byte BB2[8] = {
+  B11000,
+  B11000,
+  B11000,
+  B11000,
+  B11000,
+  B11000,
+  B11000,
+};
+byte BB4[8] = {
+  B11110,
+  B11110,
+  B11110,
+  B11110,
+  B11110,
+  B11110,
+  B11110,
 };
 
 byte TX[8] = {
@@ -228,6 +238,7 @@ byte TX[8] = {
   B11011,
   B11111,
 };
+
 byte WATCHDOG[8] = {
   B10001,
   B10001,
@@ -237,6 +248,7 @@ byte WATCHDOG[8] = {
   B10001,
   B10001,
 };
+
 byte RX[8] = {
   B11111,
   B10001,
@@ -248,9 +260,9 @@ byte RX[8] = {
 };
 
 #endif
-
+//*--------------------------------------------------------------------------------------------
 //*---- Definitions for various LCD display shields
-
+//*--------------------------------------------------------------------------------------------
        LiquidCrystal lcd(8, 9, 4, 5, 6, 7);  
        
        //==============================================
@@ -279,61 +291,19 @@ byte RX[8] = {
 
 
 
-#if PICOFM
 
-//*---- CTCSS Code Tables
-
-const ctcsscode ctcss[CTCSSCODEMAX]={
-                              {(char*)"Off"},
-                              {(char*)"67.0"},
-                              {(char*)"71.9"},
-                              {(char*)"74.4"},
-                              {(char*)"77.0"},
-                              {(char*)"79.7"},
-                              {(char*)"82.5"},
-                              {(char*)"85.4"},
-                              {(char*)"88.5"},
-                              {(char*)"91.5"},
-                              {(char*)"94.8"},
-                              {(char*)"97.4"},
-                              {(char*)"100.0"},
-                              {(char*)"103.5"},
-                              {(char*)"107.2"},
-                              {(char*)"110.9"},
-                              {(char*)"114.8"},
-                              {(char*)"118.8"},
-                              {(char*)"123.0"},
-                              {(char*)"127.3"},
-                              {(char*)"131.8"},
-                              {(char*)"136.5"},
-                              {(char*)"141.3"},
-                              {(char*)"146.2"},
-                              {(char*)"151.4"},
-                              {(char*)"156.7"},
-                              {(char*)"162.2"},
-                              {(char*)"167.9"},
-                              {(char*)"173.8"},
-                              {(char*)"179.9"},
-                              {(char*)"186.2"},
-                              {(char*)"192.8"},
-                              {(char*)"203.5"},
-                              {(char*)"210.7"},
-                              {(char*)"218.1"},
-                              {(char*)"225.7"},
-                              {(char*)"233.6"},
-                              {(char*)"241.8"},
-                              {(char*)"250.3"}};
-
-#endif
-
+//*--------------------------------------------------------------------------------
 //*--- Pseudo Real Time Clock  
+//*--------------------------------------------------------------------------------
 
 byte mm=0;
 byte ss=0;
 unsigned long Tclk=1000;
 byte btnPrevio=btnNONE;
 
+//*--------------------------------------------------------------------------------
 //*--- Timer related definitions
+//*--------------------------------------------------------------------------------
 
 #define T_1mSec 65473 //Timer pre-scaler for 1 KHz or 1 msec
 
@@ -347,42 +317,18 @@ uint16_t TDOG=0;
 uint16_t TBCK=0;
 uint16_t TDIM=0;
 
-
-//*--------------------------------------------------------------------------------
-//* Menu related structures
-//*--------------------------------------------------------------------------------
-
-#if PICOFM
-
-//*---- Menu storage definition
-//*----- Menu memory structures
-
-byte mItembackup=0;      //Item backup during actualization
-
-menu mainMenu;
-menu pwrMenu;
-menu ctcssMenu;
-menu stpMenu;
-menu rptMenu;
-menu spdMenu;
-menu bdwMenu;
-menu hpfMenu;
-menu lpfMenu;
-menu preMenu;
-menu wdogMenu;
-menu vfoMenu;
-menu ptyMenu;
-
-#endif
-
 //*-----------------------------------------------------------------------------------
 //*--- Define System Status Words
-//*   
+//*-----------------------------------------------------------------------------------
 
 byte MSW = 0;
 byte TSW = 0;
 byte USW = 0;
 byte JSW = 0;
+
+//*-----------------------------------------------------------------------------------
+//*--- Serial port management areas
+//*-----------------------------------------------------------------------------------
 
 char serialQueue[QUEUEMAX]; // Actual Queue space [a0,a1,...,an]
 byte pQueue = 0;            // Pointer to next position to use
@@ -390,20 +336,46 @@ byte inState= 0;
 byte inCmd=0;
 
 
-//*---- Control panel state variables
-
-byte seqA = 0;
-byte seqB = 0;
-byte cnt1 = 0;
-byte cnt2 = 0;
-
-byte ones, tens, hundreds, thousands, tenthousands, hundredthousands, millions ; //Placeholders
-
 int_fast32_t timepassed = millis(); // int to hold the arduino miilis since startup
 int_fast32_t menupassed = millis();
 
-int      memstatus   = 1;           // value to notify if memory is current or old. 0=old, 1=current.
+int memstatus   = 1;           // value to notify if memory is current or old. 0=old, 1=current.
 
+MenuClass menuRoot(NULL,NULL,NULL);
+
+#if PICOFM
+
+void CTCSSUpdate();
+void CTCSSDisplay(); 
+byte ctcssvalue=0;
+
+#define PWRMENU 0
+#define RPTMENU 1
+#define SPDMENU 2
+#define BDWMENU 3
+#define HPFMENU 4
+#define LPFMENU 5
+#define PREMENU 6
+#define TONMENU 7
+#define CTCMENU 8
+#define VFOMENU 9
+#define STPMENU 10
+#define WDGMENU 11
+
+MenuClass pwr(NULL,NULL,NULL);
+MenuClass rpt(NULL,NULL,NULL);
+MenuClass spd(NULL,NULL,NULL);
+MenuClass bdw(NULL,NULL,NULL);
+MenuClass hpf(NULL,NULL,NULL);
+MenuClass lpf(NULL,NULL,NULL);
+MenuClass pre(NULL,NULL,NULL);
+MenuClass ton(NULL,NULL,NULL);
+MenuClass ctc(CTCSSUpdate,NULL,NULL);
+MenuClass vfo(NULL,NULL,NULL);
+MenuClass stp(NULL,NULL,NULL);
+MenuClass wdg(NULL,NULL,NULL);
+
+#endif
 
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //*  Setup
@@ -412,8 +384,7 @@ void setup() {
 
   //*--- PinOut Definition
 
-
-  lcd.begin(16, 2);   // start the library  
+  lcd.begin(16, 2);   // start the LCD library  
   pinMode(10,OUTPUT);
    
    //*---- Turn On LED Backlight (1) or off (0)
@@ -433,6 +404,10 @@ void setup() {
   //========================================
   attachInterrupt(1, Encoder_san, FALLING);        //interrupts: numbers 0 (on digital pin 2) and 1 (on digital pin 3).
 
+//*-------------------------------------------------------------------------------
+//* I/O Definitions for the DRA818V
+//*-------------------------------------------------------------------------------
+#if PICOFM
 
   pinMode(A3, INPUT);         //SQ Squelch signal (0=Open;1=Closed)
   pinMode(A4, INPUT);         //PTT MIC (0=Active,1=Inactive) 
@@ -450,13 +425,17 @@ void setup() {
   digitalWrite(A3, INPUT);     //Enable internal pull-up resistor for Squelch
   digitalWrite(A4, INPUT);     //Enable internal pull-up resistor for PTT Keyer
 
+#endif
+
 //*--- Create special characters for LCD
 
-
-  lcd.createChar(2,FULL);
-  lcd.createChar(4,HALF);
-  lcd.createChar(5,TX);
-  lcd.createChar(6,RX);
+  lcd.createChar(0,RX);
+  lcd.createChar(1,BB1);
+  lcd.createChar(2,BB2);
+  lcd.createChar(3,BB3);
+  lcd.createChar(4,BB4);
+  lcd.createChar(5,BB5);
+  lcd.createChar(6,TX);
   lcd.createChar(7,WATCHDOG);
   
   lcd.setCursor(0, 0);        // Place cursor at [0,0]
@@ -467,7 +446,10 @@ void setup() {
 
   delay(DELAY_DISPLAY);
   lcd.clear();
+//*------ Define Menu related objects
 
+ 
+#if PICOFM
 
   //*---- Define the VFO System parameters
   
@@ -483,11 +465,12 @@ void setup() {
 
   vx.setVFO(VFOA);
 
+#endif
 
   //*---
-  
 
-  SQLSig=readV(SQLPIN,SQLMAX,SQLSCALE);
+  //*--- Inicializaciòn de lectura analógica 
+  //*--- SQLSig=readV(SQLPIN,SQLMAX,SQLSCALE);
   
  
     
@@ -514,98 +497,95 @@ void setup() {
 
   Serial.begin(9600);
   serialQueue[0]=0x00;
+
+#if PICOFM
+
+//*---- Setup Master system menus
+
+  menuRoot.add((char*)"Power",&pwr);
+  menuRoot.add((char*)"Rpt",&rpt);
+  menuRoot.add((char*)"SPD",&spd);
+  menuRoot.add((char*)"BDW",&bdw);
+  menuRoot.add((char*)"HPF",&hpf);
+  menuRoot.add((char*)"LPF",&lpf);
+  menuRoot.add((char*)"Pre",&pre);
+  menuRoot.add((char*)"Tone",&ton);
+  menuRoot.add((char*)"CTCSS",&ctc);
+  menuRoot.add((char*)"VFO",&vfo);
+  menuRoot.add((char*)"Step",&stp);
+  menuRoot.add((char*)"Watchdog",&wdg);
   
-  //*---- Setup Master system menus
 
-  mainMenu.mItem = 0;
+  pwr.add((char*)"Low",NULL);
+  pwr.add((char*)"High",NULL);
+
+  rpt.add((char*)"S",NULL);
+  rpt.add((char*)"+",NULL);
+  rpt.add((char*)"-",NULL);
+
+  spd.add((char*)"Off",NULL);
+  spd.add((char*)"On",NULL);
+
+  bdw.add((char*)"12.5 KHz",NULL);
+  bdw.add((char*)"25.0 KHz",NULL);
+
+  hpf.add((char*)"Off",NULL);
+  hpf.add((char*)"On",NULL);
+
+  lpf.add((char*)"Off",NULL);
+  lpf.add((char*)"On",NULL);
+
+  pre.add((char*)"Off",NULL);
+  pre.add((char*)"On",NULL);
   
-  mainMenu.mText[0] = (char*)"Power";
-  mainMenu.mText[1] = (char*)"WDog";
-  mainMenu.mText[2] = (char*)"CTCSS ";
-  mainMenu.mText[3] = (char*)"Pre ";
-  mainMenu.mText[4] = (char*)"LPF";
-  mainMenu.mText[5] = (char*)"HPF";
-  mainMenu.mText[6] = (char*)"BDW";
-  mainMenu.mText[7] = (char*)"SPD";
-  mainMenu.mText[8] = (char*)"RPT";
-  mainMenu.mText[9] = (char*)"Step";
-  mainMenu.mText[10]= (char*)"VFO";
-  mainMenu.mText[11]= (char*)"Pty";  
+  ton.add((char*)"Off",NULL);
+  ton.add((char*)"On",NULL);
+  
+  ctc.add((char*)"Off   ",NULL);
 
-//*------ Secondary menues
+  vfo.add((char*)"A",NULL);
+  vfo.add((char*)"B",NULL);
 
- //*- Power
+  stp.add((char*)" 5 KHz",NULL);
+  stp.add((char*)"10 KHz",NULL);
+  
+  wdg.add((char*)"On ",NULL);
+  wdg.add((char*)"Off",NULL);
 
- pwrMenu.mItem = 0;
- pwrMenu.mText[0] = (char*)"Low";
- pwrMenu.mText[1] = (char*)"High";
+#endif
 
- //*- WatchDog
- wdogMenu.mItem = 0;
- wdogMenu.mText[0] = (char*)"Off";
- wdogMenu.mText[1] = (char*)"On";
+  //*--- Load the stored frequency
 
- //*- Pre
+  if (FORCEFREQ == 0) {
 
- preMenu.mItem = 0;
- preMenu.mText[0] = (char*)"Off";
- preMenu.mText[1] = (char*)"On";
-
- //*- LPF
-
- lpfMenu.mItem = 0;
- lpfMenu.mText[0] = (char*)"Off";
- lpfMenu.mText[1] = (char*)"On";
-
-  //*- HPF
-
- hpfMenu.mItem = 0;
- hpfMenu.mText[0] = (char*)"Off";
- hpfMenu.mText[1] = (char*)"On";
-
-  //*- BDW
-
- bdwMenu.mItem = 1;
- bdwMenu.mText[0] = (char*)"12.5 KHz";
- bdwMenu.mText[1] = (char*)"25.0 KHz";
+     if (EEPROM.read(30)==EEPROM_COOKIE) {
+     //SQLSig = String(EEPROM.read(0)).toInt();
+     String freq = String(EEPROM.read(1)) + String(EEPROM.read(2)) + String(EEPROM.read(3)) + String(EEPROM.read(4)) + String(EEPROM.read(5)) + String(EEPROM.read(6)) + String(EEPROM.read(7));
+            vx.vfo[VFOA] = freq.toInt();
+            
+            freq = String(EEPROM.read(8)) + String(EEPROM.read(9)) + String(EEPROM.read(10)) + String(EEPROM.read(11)) + String(EEPROM.read(12)) + String(EEPROM.read(13)) + String(EEPROM.read(14));
+            vx.vfo[VFOB] = freq.toInt();
+            vx.vfoAB = EEPROM.read(15);        
 
 
-  //*- SPD
+            pwr.set(EEPROM.read(16));
+            wdg.set(EEPROM.read(17));
+            stp.set(EEPROM.read(18));
+            rpt.set(EEPROM.read(19));
+            spd.set(EEPROM.read(20));
+            bdw.set(EEPROM.read(21));
+            hpf.set(EEPROM.read(22));
+            lpf.set(EEPROM.read(23));
+            pre.set(EEPROM.read(24));
+            ctc.set(EEPROM.read(25));
+            vfo.set(EEPROM.read(26));
 
- spdMenu.mItem = 0;
- spdMenu.mText[0] = (char*)"Off";
- spdMenu.mText[1] = (char*)"On";
+            MSW = EEPROM.read(27);
+            USW = EEPROM.read(28);
+            TSW = EEPROM.read(29);
+     }
+  } 
 
-  //*- RPT
-
- rptMenu.mItem = 0;
- rptMenu.mText[0] = (char*)" ";
- rptMenu.mText[1] = (char*)"+";
- rptMenu.mText[2] = (char*)"-";
-
-//*- Step 
- 
- stpMenu.mItem = 1;
- stpMenu.mText[0] = (char*)" 5  KHz";
- stpMenu.mText[1] = (char*)"10  KHz";
-
-//*- Step 
- 
- vfoMenu.mItem = 0;
- vfoMenu.mText[0] = (char*)"VFO A";
- vfoMenu.mText[1] = (char*)"VFO B";
-
-//*- Priority Channel 
- 
- ptyMenu.mItem = 0;
- ptyMenu.mText[0] = (char*)"Off";
- ptyMenu.mText[1] = (char*)"On";
-
-//*--- CTCSS
- ctcssMenu.mItem = 0;
- ctcssMenu.mText[0] = (char*)" Hz";
-
- 
 //*--- Initial value for system operating modes
 
   setWord(&MSW,CMD,false);
@@ -624,59 +604,35 @@ void setup() {
   setWord(&USW,MIC,false);
   setWord(&USW,KDOWN,false);
 
-
   setWord(&JSW,JLEFT,false);
   setWord(&JSW,JRIGHT,false);
   setWord(&JSW,JUP,false);
   setWord(&JSW,JDOWN,false);
-  
-  //*--- Load the stored frequency
-
-  if (FORCEFREQ == 0) {
-     
-     SQLSig = String(EEPROM.read(0)).toInt();
-     String freq = String(EEPROM.read(1)) + String(EEPROM.read(2)) + String(EEPROM.read(3)) + String(EEPROM.read(4)) + String(EEPROM.read(5)) + String(EEPROM.read(6)) + String(EEPROM.read(7));
-            vx.vfo[VFOA] = freq.toInt();
-            
-            freq = String(EEPROM.read(8)) + String(EEPROM.read(9)) + String(EEPROM.read(10)) + String(EEPROM.read(11)) + String(EEPROM.read(12)) + String(EEPROM.read(13)) + String(EEPROM.read(14));
-            vx.vfo[VFOB] = freq.toInt();
-            vx.vfoAB = EEPROM.read(15);        
-            
-            pwrMenu.mItem = EEPROM.read(16);
-            wdogMenu.mItem= EEPROM.read(17);
-            stpMenu.mItem = EEPROM.read(18);
-            rptMenu.mItem = EEPROM.read(19);
-            spdMenu.mItem = EEPROM.read(20);
-            bdwMenu.mItem = EEPROM.read(21);
-            hpfMenu.mItem = EEPROM.read(22);
-            lpfMenu.mItem = EEPROM.read(23);
-            preMenu.mItem = EEPROM.read(24);
-            ctcssMenu.mItem=EEPROM.read(25);
-            vfoMenu.mItem = EEPROM.read(26);
 
 
-            MSW = EEPROM.read(27);
-            USW = EEPROM.read(28);
-            TSW = EEPROM.read(29);
-
-  } 
 //*--------- Attempt to establish contact with the DRA018F module
-  
+
+
+#if PICOFM
+
   doHandShake();
   doSetVolume();
   doSetFilter();
   doSetGroup();
 
   showPanel();
+#endif
+
 //*--------- Update SQL
-     
-  int s=readV(SQLPIN,SQLMAX,SQLSCALE);
-  SQLSig=s;
+  //*--------- Lectura analògica   
+  //int s=readV(SQLPIN,SQLMAX,SQLSCALE);
+  //SQLSig=s;
+  
+  char hi[80];
   
 //*=========================================================================================================
 #if DEBUG
 //*--- Print Serial Banner (TEST Mode Mostly)
-  char hi[80];
   sprintf(hi,"%s %s Compiled %s %s",PROGRAMID,PROG_VERSION,__TIME__, __DATE__);
   Serial.println(hi);
   sprintf(hi,"(c) %s",COPYRIGHT);
@@ -686,83 +642,37 @@ void setup() {
 //*=========================================================================================================
 
 }
+//*---------------------------------------------------------------------------------------------------------------
+//* Test code to print a given menu class
+//*---------------------------------------------------------------------------------------------------------------
+void printList(MenuClass* r){
+  char hi[80];
+  
+  for(int i = 0; i < r->l.size(); i++){
+
+    sprintf(hi,"Class Object index[%2d] mItem[%2d] Text[%s] Size[%1d]",i,r->mItem,r->l.get(i)->mText,r->l.size());
+    Serial.println(hi);
+  
+   }
+
+}
+
 
 //*****************************************************************************************************
-//*                               Menú Finite Status Machine (FSM)
-//*
-//*
-//*
-//*
+//*                               MenÃº Finite Status Machine (FSM)
 //*
 //*****************************************************************************************************
 //*--------------------------------------------------------------------------------------------
 //* menuText
-//* solves text based on Menu FSM state
+//* defines the text based on Menu FSM state
 //*--------------------------------------------------------------------------------------------
 String menuText(byte mItem) {
 
-
-   switch(mItem) {
-   
-   
-   case 0: {
-        return String(pwrMenu.mText[pwrMenu.mItem]);
-   }
-   case 1: {
-        return String(wdogMenu.mText[wdogMenu.mItem]);
-   }
-
-   case 2: {
-        if (ctcssMenu.mItem==0) {return String("Off");}
-        return String(ctcss[ctcssMenu.mItem].s)+" "+ctcssMenu.mText[0];
-        //return (char*)ctcss[ctcssMenu.mItem].s;
-   }
-   case 3: {
-        return String(preMenu.mText[preMenu.mItem]);
-   }
-   case 4: {
-        return String(lpfMenu.mText[lpfMenu.mItem]);
-   }
-   case 5: {
-        return String(hpfMenu.mText[hpfMenu.mItem]);
-   }
-   case 6: {
-        return String(bdwMenu.mText[bdwMenu.mItem]);
-   }
-   case 7: {
-        return String(spdMenu.mText[spdMenu.mItem]);
-   }
-   case 8: {
-        return String(rptMenu.mText[rptMenu.mItem]);
-   }
-   case 9: {
-        return String(stpMenu.mText[stpMenu.mItem]);
-   }
-   case 10: {
-        return String(vfoMenu.mText[vfoMenu.mItem]);
-   }
-   case 11: {
-        return String(ptyMenu.mText[ptyMenu.mItem]);
-   }
-
-   }
-   return String("??");
+//*---- Here CMD==true and GUI==true so it's a second level menu
+   byte i=menuRoot.get();
+   MenuClass* z=menuRoot.getChild(i);
+   return z->getText(i);
  
-}
-//*-------------------------------------------------------------------------------------------
-//*
-//*-------------------------------------------------------------------------------------------
-void splitFreq(long int fx) {
-  
-
-  millions =       int(fx / 1000000);
-  hundredthousands = ((fx / 100000) % 10);
-  tenthousands =     ((fx / 10000) % 10);
-  thousands =        ((fx / 1000) % 10);
-  hundreds =         ((fx / 100) % 10);
-  tens =             ((fx / 10) % 10);
-  ones =             ((fx / 1) % 10);
-  
 }
 //*--------------------------------------------------------------------------------------------
 //* showFreq
@@ -775,7 +685,7 @@ void showFreq() {
   long int f=vx.vfo[vx.vfoAB];
   
   if (getWord(MSW,PTT)==false) {
-     f=getFreq(f,vx.vfoshift[vx.vfoAB],rptMenu.mItem);
+     f=getFreq(f,vx.vfoshift[vx.vfoAB],rpt.get());
   }
 
   vx.computeVFO(f,&v);
@@ -804,7 +714,7 @@ void showFreq() {
 void showRpt() {
   
   lcd.setCursor(0,0);
-  lcd.print(rptMenu.mText[rptMenu.mItem]);
+  lcd.print(rpt.getText(rpt.get()));
 
 };
 //*--------------------------------------------------------------------------------------------
@@ -814,7 +724,7 @@ void showRpt() {
 void showCTC() {
 
   lcd.setCursor(1,0);
-  if (ctcssMenu.mItem==0){lcd.print(" ");} else {lcd.print("T");}
+  if (ctcssvalue==0){lcd.print(" ");} else {lcd.print("T");}
 
 };
 //*--------------------------------------------------------------------------------------------
@@ -825,16 +735,17 @@ void showPwr() {
   
   lcd.setCursor(13,1);
   
-  if (pwrMenu.mItem==0){
-     lcd.write(2);
+  
+  if (pwr.get()==0){
+     lcd.write(byte(5));
      lcd.setCursor(14,1);
-     lcd.write(4); 
+     lcd.write(byte(3)); 
   } else {
-     lcd.write(2);
+     lcd.write(byte(byte(5)));
      lcd.setCursor(14,1);
-     lcd.write(2);
+     lcd.write(byte(byte(5)));
      lcd.setCursor(15,1);
-     lcd.write(2);
+     lcd.write(byte(byte(5)));
   }   
 }
 //*--------------------------------------------------------------------------------------------
@@ -843,8 +754,8 @@ void showPwr() {
 //*--------------------------------------------------------------------------------------------
 void showSPD() {
 
-  lcd.setCursor(3,0);
-  if (spdMenu.mItem==0) {lcd.print(" ");} else {lcd.print("Z");}
+  lcd.setCursor(5,0);
+  if (spd.get()==0) {lcd.print(" ");} else {lcd.print("Z");}
 };
 
 //*--------------------------------------------------------------------------------------------
@@ -854,7 +765,7 @@ void showSPD() {
 void showSQL() {
 
   lcd.setCursor(13,0);
-  if (digitalRead(A3)==LOW) {lcd.write(2);} else {lcd.write(6);}
+  if (digitalRead(A3)==LOW) {lcd.write(byte(5));} else {lcd.write(byte(0));}
   
 };
 //*--------------------------------------------------------------------------------------------
@@ -863,9 +774,9 @@ void showSQL() {
 //*--------------------------------------------------------------------------------------------
 void showPTT() {
 
-  lcd.setCursor(14,0);
-  if (getWord(MSW,DOG)==true && wdogMenu.mItem!=0){lcd.write(7); lcd.setCursor(14,0);lcd.blink();return;}
-  if (getWord(MSW,PTT)==false) {lcd.write(5); lcd.setCursor(14,0);lcd.noBlink();} else {lcd.print(" ");lcd.setCursor(14,0);lcd.noBlink();}
+  lcd.setCursor(4,0);
+  if (getWord(MSW,DOG)==true && wdg.get()!=0){lcd.write(byte(7)); lcd.setCursor(4,0);lcd.blink();return;}
+  if (getWord(MSW,PTT)==false) {lcd.write(byte(6)); lcd.setCursor(4,0);lcd.noBlink();} else {lcd.print(" ");lcd.setCursor(4,0);lcd.noBlink();}
 };
 
 //*--------------------------------------------------------------------------------------------
@@ -874,8 +785,8 @@ void showPTT() {
 //*--------------------------------------------------------------------------------------------
 void showPre() {
   
-  lcd.setCursor(4,0);
-  if (preMenu.mItem==0){lcd.print(" ");} else {lcd.print("P");}
+  lcd.setCursor(8,0);
+  if (pre.get()==0){lcd.print(" ");} else {lcd.print("P");}
 
 };
 //*--------------------------------------------------------------------------------------------
@@ -884,8 +795,8 @@ void showPre() {
 //*--------------------------------------------------------------------------------------------
 void showHPF() {
   
-  lcd.setCursor(5,0);
-  if (hpfMenu.mItem==0){lcd.print(" ");} else {lcd.print("H");}
+  lcd.setCursor(7,0);
+  if (hpf.get()==0){lcd.print(" ");} else {lcd.print("H");}
 
 };
 //*--------------------------------------------------------------------------------------------
@@ -894,7 +805,7 @@ void showHPF() {
 //*--------------------------------------------------------------------------------------------
 void showDRF() {
   
-  lcd.setCursor(7,0);
+  lcd.setCursor(3,0);
   if (getWord(MSW,DRF)==false){lcd.print(char(174));} else {lcd.print(char(42));}
 
 };
@@ -904,8 +815,8 @@ void showDRF() {
 //*--------------------------------------------------------------------------------------------
 void showDog() {
   
-  lcd.setCursor(8,0);
-  if (wdogMenu.mItem==0){lcd.print(" ");} else {lcd.print("W");}
+  lcd.setCursor(9,0);
+  if (wdg.get()==0){lcd.print(" ");} else {lcd.print("W");}
 
 };
 
@@ -916,7 +827,7 @@ void showDog() {
 void showLPF() {
   
   lcd.setCursor(6,0);
-  if (lpfMenu.mItem==0){lcd.print(" ");} else {lcd.print("L");}
+  if (lpf.get()==0){lcd.print(" ");} else {lcd.print("L");}
 
 };
 
@@ -926,18 +837,14 @@ void showLPF() {
 //*--------------------------------------------------------------------------------------------
 void showVFO() {
   
-  lcd.setCursor(10,0);
+  lcd.setCursor(2,0);
   if (vx.vfoAB==VFOA){lcd.print("A");} else {lcd.print("B");}
 
 };
 
-
-
-
-
 //*--------------------------------------------------------------------------------------------
 //* showPanel
-//* show frequency at the display
+//* show frequency or menu information at the display
 //*--------------------------------------------------------------------------------------------
 void showPanel() {
 
@@ -964,15 +871,19 @@ void showPanel() {
       return;
    }
 
-//*--- if here then CLI==true
+//*--- if here then CMD==true
 
+   byte i=menuRoot.get();
+   MenuClass* z=menuRoot.getChild(i);
+    
+      
    if (getWord(MSW,GUI)==false) {
       
       lcd.clear();
       lcd.setCursor(0,0);
-      lcd.print("<"+String(mainMenu.mItem)+"> "+String(mainMenu.mText[mainMenu.mItem]));
+      lcd.print("<"+String(i)+"> "+String(menuRoot.getText(i)));
       lcd.setCursor(1,1);
-      lcd.print("  "+String(menuText(mainMenu.mItem)));
+      lcd.print("  "+String(z->getText(z->get()) ));
 
       return;
       
@@ -980,10 +891,10 @@ void showPanel() {
       
       lcd.clear();
       lcd.setCursor(0,0);
-      lcd.print("<"+String(mainMenu.mItem)+"> "+String(mainMenu.mText[mainMenu.mItem]));
+      lcd.print("<"+String(menuRoot.get())+"> "+String(menuRoot.getText(menuRoot.get())));
       lcd.setCursor(0,1);
       lcd.print(">");
-      lcd.print(" "+String(menuText(mainMenu.mItem)));
+      lcd.print("  "+String(z->getText(z->get()) ));
       return;
    }
 
@@ -998,80 +909,20 @@ void menuFSM() {
       return;
    }
 
-   if (getWord(MSW,GUI)==false) {  //It's the first level
-      
-      mainMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),mainMenu.mItem,NMAX);
+   if (getWord(MSW,GUI)==false) {  //It's the first level     
+      menuRoot.move(getWord(USW,BCW),getWord(USW,BCCW));
       showPanel();
       return;
    }
 
 //*---- Here CMD==true and GUI==true so it's a second level menu
-   switch (mainMenu.mItem) {
-     
-      case 0 : {
-         pwrMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),pwrMenu.mItem,PWRMAX);
-         showPanel();
-         return;
-      }
-      case 1 : {
-         wdogMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),wdogMenu.mItem,TONEMAX);
-         showPanel();
-         return;
-      }
-      
-      case 2 : {
-         ctcssMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),ctcssMenu.mItem,CTCMAX);
-         showPanel();
-         return;
-      }
-      case 3 : {
-         preMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),preMenu.mItem,PREMAX);
-         showPanel();
-         return;
-      }
-      case 4 : {
-         lpfMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),lpfMenu.mItem,LPFMAX);
-         showPanel();
-         return;
-      }
-      case 5 : {
-         hpfMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),hpfMenu.mItem,HPFMAX);
-         showPanel();
-         return;
-      }
-      case 6 : {
-         bdwMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),bdwMenu.mItem,BDWMAX);
-         showPanel();
-         return;
-      }
-      case 7 : {
-         spdMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),spdMenu.mItem,SPDMAX);
-         showPanel();
-         return;
-      }
-      case 8 : {
-         rptMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),rptMenu.mItem,RPTMAX);
-         showPanel();
-         return;
-      }
-      
-      case 9 : {
-         stpMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),stpMenu.mItem,STPMAX);
-         showPanel();
-         return;
-      }
-     case 10 : {
-         vfoMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),vfoMenu.mItem,VFOMAX);
-         showPanel();
-         return;
-      }
-     case 11 : {
-         ptyMenu.mItem = incMenu(getWord(USW,BCW),getWord(USW,BCCW),ptyMenu.mItem,PTYMAX);
-         showPanel();
-         return;
-      }
 
-   }
+     byte i=menuRoot.get();
+     MenuClass* z=menuRoot.getChild(i);
+     z->move(getWord(USW,BCW),getWord(USW,BCCW));
+     showPanel();
+     return;
+   
 }
 
 //*--------------------------------------------------------------------------------------------
@@ -1086,25 +937,32 @@ void doSave() {
       
       delay(DELAY_SAVE);
 
+      
+      byte i=menuRoot.get();
+      MenuClass* z=menuRoot.l.get(i)->mChild;
+      byte j=z->mItem;
+      byte k=z->mItemBackup;
+   
       //*--- Detect changes that needs to be reflected thru commands to the ChipSet
 
-      if ((mainMenu.mItem == 0) && (pwrMenu.mItem   != mItembackup)) {doSetPower();}
-      if ((mainMenu.mItem == 7) && (spdMenu.mItem   != mItembackup)) {doSetPD();}
+      if ( (menuRoot.get() == PWRMENU) && (j!=k)) {doSetPower();}
+      if ( (menuRoot.get() == SPDMENU) && (j!=k)) {doSetPD();}
+      
+      
+      if ( (menuRoot.get() == STPMENU ||
+            menuRoot.get() == RPTMENU ||
+            menuRoot.get() == TONMENU ||
+            menuRoot.get() == VFOMENU ||
+            menuRoot.get() == BDWMENU ) && (j!=k)) {doSetGroup();}
+      
+      if ( (menuRoot.get() == HPFMENU ||
+            menuRoot.get() == LPFMENU ||
+            menuRoot.get() == PREMENU ) && (j!=k)) {doSetFilter();}
+      
+      vx.vfoAB=vfo.get();
 
-      if ((mainMenu.mItem == 1) && (wdogMenu.mItem  != mItembackup)) {doSetGroup();}
-      if ((mainMenu.mItem == 2) && (ctcssMenu.mItem != mItembackup)) {doSetGroup();}
-      if ((mainMenu.mItem == 6) && (bdwMenu.mItem   != mItembackup)) {doSetGroup();}
-      if ((mainMenu.mItem == 8) && (rptMenu.mItem   != mItembackup)) {doSetGroup();}
-      if ((mainMenu.mItem ==10) && (vfoMenu.mItem   != mItembackup)) {doSetGroup();}
 
-
-      if ((mainMenu.mItem == 3) && (preMenu.mItem   != mItembackup)) {doSetFilter();}
-      if ((mainMenu.mItem == 4) && (lpfMenu.mItem   != mItembackup)) {doSetFilter();}
-      if ((mainMenu.mItem == 5) && (hpfMenu.mItem   != mItembackup)) {doSetFilter();}
-
-      vx.vfoAB=vfoMenu.mItem;
-
-      if (stpMenu.mItem==0) {
+      if (stp.get()==0) {
          vx.vfostep[vx.vfoAB]=VFO_STEP_5KHz;
       } else {
          vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;
@@ -1112,32 +970,14 @@ void doSave() {
 
       setWord(&MSW,CMD,false);
       setWord(&MSW,GUI,false);
-     
-      showPanel;
+
+      menuRoot.save();
+      showPanel();
 
 }
 
-//*---------------------------------------------------------------------------------------
-//*-- Increase manu item
-//*---------------------------------------------------------------------------------------
-byte incMenu(boolean cw,boolean ccw,byte mItem,byte mItemMax) {
-      
-      if (cw == true) {
-         if (mItem==mItemMax-1) { return 0; }
-         return mItem+1;
-      }
-      if (ccw == true) {
-         if (mItem==0) {return mItemMax-1;}
-         return mItem-1;
-      }
-      return mItem;
-}
 //*****************************************************************************************************
 //*                            Command Finite Status Machine (FSM)
-//*
-//*
-//*
-//*
 //*
 //*****************************************************************************************************
 //*----------------------------------------------------------------------------------------------------
@@ -1145,122 +985,21 @@ byte incMenu(boolean cw,boolean ccw,byte mItem,byte mItemMax) {
 //* come here with CLI==true so it's either one of the two menu levels
 //*----------------------------------------------------------------------------------------------------
 void backupFSM() {
-//*---- Here CMD==true and GUI==true so it's a second level menu
-   switch (mainMenu.mItem) {
 
-      case 0 : {
-         mItembackup=pwrMenu.mItem;
-         return;
-      }
-      case 1 : {
-         mItembackup=wdogMenu.mItem;
-         return;
-      }
-      
-      case 2 : {
-         mItembackup=ctcssMenu.mItem;
-         return;
-      }
-      case 3 : {
-         mItembackup=preMenu.mItem;
-         return;
-      }
-      case 4 : {
-         mItembackup=lpfMenu.mItem;
-         return;
-      }
-      case 5 : {
-         mItembackup=hpfMenu.mItem;
-         return;
-      }
-      case 6 : {
-         mItembackup=bdwMenu.mItem;
-         return;
-      }
-      case 7 : {
-         mItembackup=spdMenu.mItem;
-         return;
-      }
-      case 8 : {
-         mItembackup=rptMenu.mItem;
-         return;
-      }
-      case 9 : {
-         mItembackup=stpMenu.mItem;
-         return;
-      }
-      case 10 : {
-         mItembackup=vfoMenu.mItem;
-         return;
-      }
-      case 11 : {
-         mItembackup=ptyMenu.mItem;
-         return;
-      }
+     byte i=menuRoot.get();
+     MenuClass* z=menuRoot.getChild(i);
+     z->backup();
 
-   }
-  
 }
 //*----------------------------------------------------------------------------------------------------
 //* restoreFSM
 //* come here with CLI==true so it's either one of the two menu levels
 //*----------------------------------------------------------------------------------------------------
 void restoreFSM() {
-//*---- Here CLI==true and MENU==true so it's a second level menu
-   switch (mainMenu.mItem) {
 
-      case 0 : {
-         pwrMenu.mItem=mItembackup;
-         return;
-      }
-      case 1 : {
-         wdogMenu.mItem=mItembackup;
-         return;
-      }
-      
-      case 2 : {
-         ctcssMenu.mItem=mItembackup;
-         return;
-      }
-      case 3 : {
-         preMenu.mItem=mItembackup;
-         return;
-      }
-      case 4 : {
-         lpfMenu.mItem=mItembackup;
-         return;
-      }
-      case 5 : {
-         hpfMenu.mItem=mItembackup;
-         return;
-      }
-      case 6 : {
-         bdwMenu.mItem=mItembackup;
-         return;
-      }
-      case 7 : {
-         spdMenu.mItem=mItembackup;
-         return;
-      }
-      case 8 : {
-         rptMenu.mItem=mItembackup;
-         return;
-      }
-      case 9 : {
-         stpMenu.mItem=mItembackup;
-         return;
-      }
-      case 10 : {
-         vfoMenu.mItem=mItembackup;
-         return;
-      }
-      case 11 : {
-         ptyMenu.mItem=mItembackup;
-         return;
-      }
-
-   }
-  
+      byte i=menuRoot.get();
+      MenuClass* z=menuRoot.getChild(i);
+      z->restore();  
 }
 
 
@@ -1375,11 +1114,11 @@ void CMD_FSM() {
    //*-------------------------------------------------------------------------
    //* Operate Watchdog
    //*-------------------------------------------------------------------------
-       if (getWord(TSW,FDOG)==true && wdogMenu.mItem !=0) {
+       if (getWord(TSW,FDOG)==true && wdg.get() !=0) {
           setWord(&TSW,FDOG,false);
           setWord(&MSW,DOG,true);
           digitalWrite(PTTPin,LOW);
-          if (getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rptMenu.mItem)!=vx.vfo[vx.vfoAB]) {
+          if ( getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rpt.get() )!=vx.vfo[vx.vfoAB]) {
              showFreq();
           }
         
@@ -1394,14 +1133,14 @@ void CMD_FSM() {
            setWord(&MSW,PTT,false);
            digitalWrite(PTTPin,HIGH);    //*-- Prende TX
            
-           if (getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rptMenu.mItem)!=vx.vfo[vx.vfoAB]) {
+           if (getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rpt.get()) !=vx.vfo[vx.vfoAB]) {
              showFreq();
            }
 
            digitalWrite(10,LCD_ON);
            TDIM=DIM_DELAY; 
            
-           if (wdogMenu.mItem!=0) {TDOG=DOG_DELAY;}
+           if (wdg.get()!=0) {TDOG=DOG_DELAY;}
            
            setWord(&MSW,DOG,false);
            showPTT();
@@ -1419,13 +1158,13 @@ void CMD_FSM() {
           }   
        }
     //*-------------------------------------------------------------------------
-    //* Handle squelch
+    //* Handle squelch (avoid presenting while in menu)
     //*-------------------------------------------------------------------------
-       if (digitalRead(A3)==LOW && getWord(MSW,SQL)==false && getWord(MSW,PTT)==true){
+       if (digitalRead(A3)==LOW && getWord(MSW,SQL)==false && getWord(MSW,PTT)==true && getWord(USW,CMD)==false){
            setWord(&MSW,SQL,true);
            showSQL();
        } else {
-          if (digitalRead(A3)==HIGH && getWord(MSW,PTT)==true && getWord(MSW,PTT)==true) {
+          if (digitalRead(A3)==HIGH && getWord(MSW,PTT)==true && getWord(MSW,PTT)==true && getWord(USW,CMD)==false) {
               setWord(&MSW,SQL,false);
               showSQL();
           }   
@@ -1435,8 +1174,8 @@ void CMD_FSM() {
    //*-------------------------------------------------------------------------
    if (getWord(MSW,PTT) == true) {
     
-     int s=readV(SQLPIN,SQLMAX,SQLSCALE);
-
+     //*--- Lectura analógica int s=readV(SQLPIN,SQLMAX,SQLSCALE);
+/*
      if (s != SQLSig) {
         displayV(s);
         SQLSig=s;
@@ -1451,6 +1190,8 @@ void CMD_FSM() {
            setWord(&TSW,FTS,false);
        }
      }
+*/
+     
    }
    
 //*-----------------------------------------------------------------------------
@@ -1496,7 +1237,7 @@ void CMD_FSM() {
          setWord(&JSW,JLEFT,false);
          setWord(&USW,BCCW,true);
          T4=LCD_DELAY;
-         vx.updateVFO(vx.vfoAB,-1000000);
+         vx.updateVFO(vx.vfoAB,-VFO_STEP_1MHZ);
          setWord(&USW,BCW,false);
          setWord(&USW,BCCW,false);
 
@@ -1510,7 +1251,7 @@ void CMD_FSM() {
          setWord(&JSW,JRIGHT,false);
          setWord(&USW,BCW,true);
          T4=LCD_DELAY;
-         vx.updateVFO(vx.vfoAB,+1000000);
+         vx.updateVFO(vx.vfoAB,VFO_STEP_1MHZ);
          setWord(&USW,BCW,false);
          setWord(&USW,BCCW,false);
 
@@ -1523,8 +1264,8 @@ void CMD_FSM() {
       if (getWord(JSW,JUP)==true) {
          
          setWord(&JSW,JUP,false);
-         vfoMenu.mItem=(vfoMenu.mItem+1) % 2;
-         vx.vfoAB=vfoMenu.mItem;
+         vfo.set((vfo.get()+1) % 2);
+         vx.vfoAB=vfo.get();
          showPanel();
          setWord(&USW,BCW,false);
          setWord(&USW,BCCW,false);
@@ -1536,8 +1277,7 @@ void CMD_FSM() {
 
       if (getWord(JSW,JDOWN)==true) {
          setWord(&JSW,JDOWN,false);
-         
-         rptMenu.mItem=(rptMenu.mItem+1) % 3;
+         rpt.mItem=(rpt.mItem+1) % 3;
          showPanel();
          setWord(&USW,BCW,false);
          setWord(&USW,BCCW,false);
@@ -1680,16 +1420,18 @@ void CMD_FSM() {
 //*--------------------------------------------------------------------------------------------
 void doSetGroup() {
   FSTR     v;
+
   
-  long int f=getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rptMenu.mItem);
+  long int f=getFreq(vx.vfo[vx.vfoAB],vx.vfoshift[vx.vfoAB],rpt.get());
   vx.computeVFO(f,&v);   
   char hi[40];
-  sprintf(hi,"AT+DMOSETGROUP=%1d,%3d.%1d%1d%1d%1d,",bdwMenu.mItem,v.millions,v.hundredthousands,v.tenthousands,v.thousands,v.hundreds);
+  sprintf(hi,"AT+DMOSETGROUP=%1d,%3d.%1d%1d%1d%1d,",bdw.get(),v.millions,v.hundredthousands,v.tenthousands,v.thousands,v.hundreds);
   Serial.print(hi);
+  byte SQLSig=0;
   
   f=vx.vfo[vx.vfoAB];
   vx.computeVFO(f,&v); 
-  sprintf(hi,"%3d.%1d%1d%1d%1d,0,%1d,%1d\r\n",v.millions,v.hundredthousands,v.tenthousands,v.thousands,v.hundreds,SQLSig,ctcssMenu.mItem);
+  sprintf(hi,"%3d.%1d%1d%1d%1d,0,%1d,%1d\r\n",v.millions,v.hundredthousands,v.tenthousands,v.thousands,v.hundreds,SQLSig,ctc.get());
   Serial.print(hi);
   
   delay(CMD_DELAY);
@@ -1702,7 +1444,7 @@ void doSetGroup() {
 void doSetFilter() {
    
   char hi[30];
-  sprintf(hi,"AT+SETFILTER=%1d,%1d,%1d\r\n",preMenu.mItem,hpfMenu.mItem,lpfMenu.mItem);
+  sprintf(hi,"AT+SETFILTER=%1d,%1d,%1d\r\n",pre.get(),hpf.get(),lpf.get());
   Serial.println(hi);
   delay(CMD_DELAY);
   
@@ -1726,6 +1468,84 @@ void doSetVolume() {
 void doScan() {
   
 }
+/*
+//*--------------------------------------------------------------------------------------------
+//* CTCSS Update
+//* send commands related to scan frequency information
+//*--------------------------------------------------------------------------------------------
+void CTCSSDisplay() {
+  
+  //showPanel();
+  return;  
+} 
+*/ 
+//*--------------------------------------------------------------------------------------------
+//* CTCSS Update
+//* send commands related to scan frequency information
+//*--------------------------------------------------------------------------------------------
+void CTCSSUpdate() {
+  byte i=menuRoot.get();
+  MenuClass* z=menuRoot.getChild(i);
+  
+  z->mItem=0;
+  ctcssvalue=ctcssvalue+1;
+  
+  if (ctcssvalue>(CTCSSCODEMAX-1)){ctcssvalue=0;};
+  char* s=(char*)"                  ";
+  
+  switch(ctcssvalue) {
+    case 0:                          {s=(char*)"Off";break;};                            
+    case 1:                          {s=(char*)"67.0";break;};
+    case 2:                          {s=(char*)"71.9";break;};
+    case 3:                          {s=(char*)"74.4";break;};
+    case 4:                          {s=(char*)"77.0";break;};
+    case 5:                          {s=(char*)"79.7";break;};
+    case 6:                          {s=(char*)"82.5";break;};
+    case 7:                          {s=(char*)"85.4";break;};
+    case 8:                          {s=(char*)"88.5";break;};
+    case 9:                          {s=(char*)"91.5";break;};
+    case 10:                         {s=(char*)"94.8";break;};
+    case 11:                         {s=(char*)"97.4";break;};
+    case 12:                         {s=(char*)"100.0";break;};
+    case 13:                         {s=(char*)"103.5";break;};
+    case 14:                         {s=(char*)"107.2";break;};
+    case 15:                         {s=(char*)"110.9";break;};
+    case 16:                         {s=(char*)"114.8";break;};   
+    case 17:                         {s=(char*)"118.8";break;};
+    case 18:                         {s=(char*)"123.0";break;};
+    case 19:                         {s=(char*)"127.3";break;};
+    default:                         {s=(char*)"131.8";break;};
+    /*
+    case 21:                         {s=(char*)"136.5";break;};
+    case 22:                         {s=(char*)"141.3";break;};
+    case 23:                         {s=(char*)"146.2";break;};
+    case 24:                         {s=(char*)"151.4";break;};
+    case 25:                         {s=(char*)"156.7";break;};
+    default:                         {s=(char*)"162.2";break;};
+    /*
+                              {(char*)"167.9"},
+                              {(char*)"173.8"},
+                              {(char*)"179.9"},
+                              {(char*)"186.2"},
+                              {(char*)"192.8"},
+                              {(char*)"203.5"},
+                              {(char*)"210.7"},
+                              {(char*)"218.1"},
+                              {(char*)"225.7"},
+                              {(char*)"233.6"},
+                              {(char*)"241.8"},                             
+                              {(char*)"250.3"}};
+    */
+    
+  }
+  
+  z->l.get(0)->mText=s;
+  showPanel();
+  
+  return;
+  
+}
+
 //*--------------------------------------------------------------------------------------------
 //* swapVFO
 //* returns the "other" VFO
@@ -1766,7 +1586,7 @@ void doHandShake() {
 //*--------------------------------------------------------------------------------------------
 void doSetPower() {
 
-  if (pwrMenu.mItem==0) {
+  if (pwr.get()==0) {
      digitalWrite(HLPin,LOW);
   } else {
      digitalWrite(HLPin,HIGH);
@@ -1778,7 +1598,7 @@ void doSetPower() {
 //* send commands related to set PD mode
 //*--------------------------------------------------------------------------------------------
 void doSetPD() {
-  if (spdMenu.mItem==0) {
+  if (spd.get()==0) {
      digitalWrite(PDPin,LOW);
   } else {
      digitalWrite(PDPin,HIGH);
@@ -1844,7 +1664,6 @@ void serialEvent() {
         case '=': {
                 if (strcmp(serialQueue,"S")==0) {
                    inCmd=5;
-                   //Serial.println("Frequency");
                 }
                 
                 inState=2;
@@ -1917,20 +1736,10 @@ void serialEvent() {
 //*****************************************************************************************************
 //*                               Manages Meter
 //*
-//*
-//*
-//*
-//*
+
 //*****************************************************************************************************
 
-//*----------------------------------------[LCD_FSM]---------------------------------------------------
-//* Read analog pin and returns a scaled value
-//*--------------------------------------------------------------------------------------------------
-int readV(byte VPIN,int VMAX,int VSCALE) {
 
-return (int)( (analogRead(A5)/113) - 1);
-
-}
 
 //*----------------------------------------[LCD_FSM]---------------------------------------------------
 //* Display analog indicator Read analog pin and returns a scaled value
@@ -1944,7 +1753,7 @@ lcd.setCursor(3,1);
 lcd.print("[");
 for (int i=0; i <= (V-1); i++){
    lcd.setCursor(4+i,1);
-   lcd.write(2);   
+   lcd.write(byte(5));   
 }
 lcd.setCursor(12,1);
 lcd.print("]");
@@ -1957,46 +1766,6 @@ return ;
 //* Manages frequency display at the LCD
 //*--------------------------------------------------------------------------------------------------
 void LCD_FSM() {
-
-   
-/*
-  //*--- Change frequency detected?
-
-  if (vx.isVFOChanged(vx.vfoAB)==true) {
-     
-     
-     if (getWord(USW,BBOOT)==true) {
-        showPanel();
-        setWord(&USW,BBOOT,false);    //bBoot=false;
-     } else {
-        if (TS>0) {
-            TS=0;
-            setWord(&TSW,FTS,false);
-            showPanel();
-            memstatus=0;
-            timepassed=millis();
-        } else {
-          if ((rptMenu.mItem==1 && (vx.vfo[vx.vfoAB]+vx.vfoshift[vx.vfoAB])>vx.vfomax[vx.vfoAB]) ||
-              (rptMenu.mItem==2 && (vx.vfo[vx.vfoAB]-vx.vfoshift[vx.vfoAB])<vx.vfomin[vx.vfoAB])) {
-              vx.resetVFOFreq(vx.vfoAB);    //vfo[vfoAB]=rxa;
-              setWord(&TSW,FTS,false);
-              showPanel();
-              memstatus=1;
-              timepassed=millis();
-              return;
-             }
-          //showFreq();    
-          //doSetGroup();
-          //vx.equalVFO(vx.vfoAB);
-        }
-        
-     }
-    showFreq();
-    doSetGroup();
-    vx.resetVFO(vx.vfoAB);
-  }
-*/
-
 
 
   //*--- Logic to sense the SQL reference, if changed display value and then restore once finished
@@ -2107,7 +1876,7 @@ ISR(TIMER1_OVF_vect) // interrupt service routine that wraps a user defined func
 
   if (TDIM>0 && getWord(MSW,PTT)==true) {
       TDIM--;
-      if (TDIM==0 && spdMenu.mItem == 1) {
+      if (TDIM==0 && spd.get() == 1) {
          digitalWrite(10,LCD_OFF);
       }
   }
@@ -2220,7 +1989,7 @@ void storeMEM() {
 
   if (memstatus==1) {return; }
   
-  EEPROM.write(0,byte(SQLSig && 0xff));              //* Store last squelch position known
+  //EEPROM.write(0,byte(SQLSig && 0xff));              //* Store last squelch position known
   vx.getStr(VFOA);
   
   //splitFreq(vfo[VFOA]);
@@ -2246,21 +2015,24 @@ void storeMEM() {
 
   EEPROM.write(15, vx.vfoAB);
   
-  EEPROM.write(16,pwrMenu.mItem);
-  EEPROM.write(17,wdogMenu.mItem);
-  EEPROM.write(18,stpMenu.mItem);
-  EEPROM.write(19,rptMenu.mItem);
-  EEPROM.write(20,spdMenu.mItem);
-  EEPROM.write(21,bdwMenu.mItem);
-  EEPROM.write(22,hpfMenu.mItem);
-  EEPROM.write(23,lpfMenu.mItem);
-  EEPROM.write(24,preMenu.mItem);
-  EEPROM.write(25,ctcssMenu.mItem);
-  EEPROM.write(26,vfoMenu.mItem);
+  EEPROM.write(16,pwr.get());
+  EEPROM.write(17,wdg.get());
+  EEPROM.write(18,stp.get());
+  EEPROM.write(19,rpt.get());
+  EEPROM.write(20,spd.get());
+  EEPROM.write(21,bdw.get());
+  EEPROM.write(22,hpf.get());
+  EEPROM.write(23,lpf.get());
+  EEPROM.write(24,pre.get());
+  EEPROM.write(25,ctc.get());
+  EEPROM.write(26,vfo.get());
   
   EEPROM.write(27,MSW);
   EEPROM.write(28,USW);
   EEPROM.write(29,TSW);
+
+  EEPROM.write(30,EEPROM_COOKIE);
+
 
   memstatus = 1;  // Let program know memory has been written
 };
@@ -2313,11 +2085,13 @@ int uppercase (int charbytein)
   if (((charbytein > 96) && (charbytein < 123)) || ((charbytein > 223) && (charbytein < 255))) {
     charbytein = charbytein - 32;
   }
-  if (charbytein == 158) { charbytein = 142; }  // ž -> Ž
-  if (charbytein == 154) { charbytein = 138; }  // š -> Š
+  if (charbytein == 158) { charbytein = 142; }  // Å¾ -> Å½
+  if (charbytein == 154) { charbytein = 138; }  // Å¡ -> Å 
   
   return charbytein;
 }
+
+
 
 //*=======================================================================================================================================================
 //* Super Library ELEC Freaks LCD Key Shield
@@ -2327,6 +2101,7 @@ int uppercase (int charbytein)
 //* read the buttons
 //--------------------------------------------------------------------------------------------------------------------------------------------------------
 int read_LCD_buttons() {  
+
 
 
 adc_key_in = analogRead(0);      
@@ -2347,4 +2122,6 @@ if (adc_key_in < 850)  return btnEncodeOK;
 return btnNONE;  // when all others fail, return this... 
 
 }   
+
+
 
