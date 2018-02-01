@@ -48,7 +48,7 @@
 
 #define PROGRAMID "picoFM"
 #define PROG_VERSION   "1.0"
-#define PROG_BUILD  "025"
+#define PROG_BUILD  "027"
 #define COPYRIGHT "(c) LU7DID 2018"
 
 #endif
@@ -97,11 +97,22 @@
 
 //*------------------------------------------------------------------------------------------------------------
 //*--- Read Squelch control
+typedef struct {
+    char* name;
+    byte  pin;
+    word  vmax;
+    word  vscale;
+    float v;
+    float vref;
+    float vant;
+    
+} Meter;
 
 #define SQLPIN           A5
 #define SQLMAX         1023
 #define SQLSCALE          8
-//int     SQLSig=0;
+#define SQLREF          5.0
+
 
 #define ZERO             0
 #define SERIAL_MAX      16
@@ -375,6 +386,14 @@ MenuClass vfo(NULL,NULL,NULL);
 MenuClass stp(NULL,NULL,NULL);
 MenuClass wdg(NULL,NULL,NULL);
 
+//*------------------------------------------------------------------------------------------------
+//* Init meter management objects
+//*------------------------------------------------------------------------------------------------
+//MeterClass sql(A5,5,1023,3,(char*)"sql");
+//MeterClass power(NULL,5,1023,3,(char*)"pwr");
+//MeterClass vol(NULL,5,1023,3,(char*)"vol");
+Meter sqlMeter;
+
 #endif
 
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -446,6 +465,18 @@ void setup() {
 
   delay(DELAY_DISPLAY);
   lcd.clear();
+
+//*------  Define sql meter
+  
+  sqlMeter.name =(char*)"sql";
+  sqlMeter.pin  = A5;
+  sqlMeter.vmax = 1023;
+  sqlMeter.vref = 5.0;
+  sqlMeter.vscale = 3;
+  sqlMeter.v=0.0;
+  sqlMeter.vant=0.0;
+
+
 //*------ Define Menu related objects
 
  
@@ -469,9 +500,8 @@ void setup() {
 
   //*---
 
-  //*--- Inicializaciòn de lectura analógica 
-  //*--- SQLSig=readV(SQLPIN,SQLMAX,SQLSCALE);
-  
+//*--- Initialization of Squelch meter 
+sqlMeter.v=readMeter(&sqlMeter);  
  
     
 //*--- initializes the frequency step for both VFO A & B
@@ -559,7 +589,7 @@ void setup() {
   if (FORCEFREQ == 0) {
 
      if (EEPROM.read(30)==EEPROM_COOKIE) {
-     //SQLSig = String(EEPROM.read(0)).toInt();
+     //sqlMeter.vSQLSig = String(EEPROM.read(0)).toInt();
      String freq = String(EEPROM.read(1)) + String(EEPROM.read(2)) + String(EEPROM.read(3)) + String(EEPROM.read(4)) + String(EEPROM.read(5)) + String(EEPROM.read(6)) + String(EEPROM.read(7));
             vx.vfo[VFOA] = freq.toInt();
             
@@ -623,15 +653,12 @@ void setup() {
   showPanel();
 #endif
 
-//*--------- Update SQL
-  //*--------- Lectura analògica   
-  //int s=readV(SQLPIN,SQLMAX,SQLSCALE);
-  //SQLSig=s;
-  
-  char hi[80];
+
   
 //*=========================================================================================================
 #if DEBUG
+char hi[80];
+
 //*--- Print Serial Banner (TEST Mode Mostly)
   sprintf(hi,"%s %s Compiled %s %s",PROGRAMID,PROG_VERSION,__TIME__, __DATE__);
   Serial.println(hi);
@@ -747,6 +774,15 @@ void showPwr() {
      lcd.setCursor(15,1);
      lcd.write(byte(byte(5)));
   }   
+}
+//*--------------------------------------------------------------------------------------------
+//* showMet
+//* show meter
+//*--------------------------------------------------------------------------------------------
+void showMet() {
+
+     showMeter(&sqlMeter,sqlMeter.v);
+     return;
 }
 //*--------------------------------------------------------------------------------------------
 //* showSPD
@@ -867,6 +903,7 @@ void showPanel() {
       showVFO();
       showSPD();
       showDRF();
+      showMet();
       
       return;
    }
@@ -1175,10 +1212,10 @@ void CMD_FSM() {
    if (getWord(MSW,PTT) == true) {
     
      //*--- Lectura analógica int s=readV(SQLPIN,SQLMAX,SQLSCALE);
-/*
-     if (s != SQLSig) {
-        displayV(s);
-        SQLSig=s;
+     sqlMeter.v=readMeter(&sqlMeter);
+
+     if (sqlMeter.v != sqlMeter.vant) {
+        showMeter(&sqlMeter,sqlMeter.v);
         TS=DELAY_DISPLAY;
         setWord(&TSW,FTS,false);
      } else { 
@@ -1190,7 +1227,6 @@ void CMD_FSM() {
            setWord(&TSW,FTS,false);
        }
      }
-*/
      
    }
    
@@ -1468,17 +1504,7 @@ void doSetVolume() {
 void doScan() {
   
 }
-/*
-//*--------------------------------------------------------------------------------------------
-//* CTCSS Update
-//* send commands related to scan frequency information
-//*--------------------------------------------------------------------------------------------
-void CTCSSDisplay() {
-  
-  //showPanel();
-  return;  
-} 
-*/ 
+
 //*--------------------------------------------------------------------------------------------
 //* CTCSS Update
 //* send commands related to scan frequency information
@@ -2122,6 +2148,40 @@ if (adc_key_in < 850)  return btnEncodeOK;
 return btnNONE;  // when all others fail, return this... 
 
 }   
+//*-------------------------------------------------------------------------------------------------
+//* Get a sample of the associated variable
+//*-------------------------------------------------------------------------------------------------
+float readMeter(Meter* m) {
+  
+  word vread=(word)analogRead(m->pin);
+  float vpu=m->vref/m->vmax;
+  m->v=vpu*(float)(vread);
+  return m->v;
+  
+}
+//*-------------------------------------------------------------------------------------------------
+//* Draw the value as an analog mark of SCALE blocks at the LCD real estate
+//*-------------------------------------------------------------------------------------------------
+void showMeter(Meter* m,float v){
+  
+  byte l[3];
+  byte x=(int)m->v*5;
+  lcd.setCursor(13,0);
+  lcd.print(m->name);
+
+  if (x>=10){l[0]=5;l[1]=5;l[2]=m->v-10;}
+  if (x>=5 && x<10){l[0]=5;l[1]=m->v-5;l[2]=0;}
+  if (x>=0 && x<5) {l[0]=m->v-5;l[1]=0;l[2]=0;}
+  
+  lcd.setCursor(13,1);
+  
+  lcd.write((byte)l[0]);
+  lcd.write((byte)l[1]);
+  lcd.write((byte)l[2]);
+
+  m->vant=m->v;
+  
+}
 
 
 
