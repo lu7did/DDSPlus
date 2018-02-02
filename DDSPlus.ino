@@ -117,7 +117,7 @@ typedef struct {
 #define ZERO             0
 #define SERIAL_MAX      16
 #define VOLUME           5
-#define EEPROM_COOKIE  128
+#define EEPROM_COOKIE  0x1f
 
 //*-----------------------------------------------------------------------------------------------
 //* Control lines and VFO Definition
@@ -178,7 +178,7 @@ typedef struct {
 #include "MemSizeLib.h"
 #include "VFOSystem.h"
 #include "ClassMenu.h"
-#include "ClassMeter.h"
+
 void  Encoder_san();
 
 //*-------------------------------------------------------------------------------------------------
@@ -389,9 +389,6 @@ MenuClass wdg(NULL,NULL,NULL);
 //*------------------------------------------------------------------------------------------------
 //* Init meter management objects
 //*------------------------------------------------------------------------------------------------
-//MeterClass sql(A5,5,1023,3,(char*)"sql");
-//MeterClass power(NULL,5,1023,3,(char*)"pwr");
-//MeterClass vol(NULL,5,1023,3,(char*)"vol");
 Meter sqlMeter;
 
 #endif
@@ -590,13 +587,17 @@ sqlMeter.v=readMeter(&sqlMeter);
 
      if (EEPROM.read(30)==EEPROM_COOKIE) {
      //sqlMeter.vSQLSig = String(EEPROM.read(0)).toInt();
-     String freq = String(EEPROM.read(1)) + String(EEPROM.read(2)) + String(EEPROM.read(3)) + String(EEPROM.read(4)) + String(EEPROM.read(5)) + String(EEPROM.read(6)) + String(EEPROM.read(7));
-            vx.vfo[VFOA] = freq.toInt();
-            
-            freq = String(EEPROM.read(8)) + String(EEPROM.read(9)) + String(EEPROM.read(10)) + String(EEPROM.read(11)) + String(EEPROM.read(12)) + String(EEPROM.read(13)) + String(EEPROM.read(14));
-            vx.vfo[VFOB] = freq.toInt();
-            vx.vfoAB = EEPROM.read(15);        
 
+            char hi[12];
+     
+            sprintf(hi,"%3d%1d%1d%1d%1d%1d%1d",EEPROM.read(1),EEPROM.read(2),EEPROM.read(3),EEPROM.read(4),EEPROM.read(5),EEPROM.read(5),EEPROM.read(6),EEPROM.read(7));
+            vx.vfo[VFOA]=String(hi).toInt();
+ 
+            sprintf(hi,"%3d%1d%1d%1d%1d%1d%1d",EEPROM.read(8),EEPROM.read(9),EEPROM.read(10),EEPROM.read(11),EEPROM.read(12),EEPROM.read(13),EEPROM.read(14));
+            vx.vfo[VFOB]=String(hi).toInt();
+            
+            
+            vx.vfoAB = EEPROM.read(15);        
 
             pwr.set(EEPROM.read(16));
             wdg.set(EEPROM.read(17));
@@ -615,6 +616,9 @@ sqlMeter.v=readMeter(&sqlMeter);
             TSW = EEPROM.read(29);
      }
   } 
+
+  if (vx.vfo[VFOA]<VFO_START || vx.vfo[VFOA]>VFO_END) {vx.vfo[VFOA]=VFO_START;}
+  if (vx.vfo[VFOB]<VFO_START || vx.vfo[VFOB]>VFO_END) {vx.vfo[VFOB]=VFO_START;}
 
 //*--- Initial value for system operating modes
 
@@ -714,7 +718,7 @@ void showFreq() {
   if (getWord(MSW,PTT)==false) {
      f=getFreq(f,vx.vfoshift[vx.vfoAB],rpt.get());
   }
-
+  //Serial.println(f);
   vx.computeVFO(f,&v);
   
   if (v.millions > 9) {
@@ -1214,7 +1218,7 @@ void CMD_FSM() {
      //*--- Lectura analógica int s=readV(SQLPIN,SQLMAX,SQLSCALE);
      sqlMeter.v=readMeter(&sqlMeter);
 
-     if (sqlMeter.v != sqlMeter.vant) {
+     if (sqlMeter.v != sqlMeter.vant && getWord(MSW,CMD)==true) {
         showMeter(&sqlMeter,sqlMeter.v);
         TS=DELAY_DISPLAY;
         setWord(&TSW,FTS,false);
@@ -2011,33 +2015,32 @@ void setWord(byte* SysWord,byte v, boolean val) {
 //*--------------------------------------------------------------------------------------------------
 
 void storeMEM() {
-  //Serial.println("Writing EEPROM...");
 
+  FSTR v;   
+  long int f=vx.vfo[VFOA];
+  vx.computeVFO(f,&v);
+ 
   if (memstatus==1) {return; }
-  
-  //EEPROM.write(0,byte(SQLSig && 0xff));              //* Store last squelch position known
-  vx.getStr(VFOA);
-  
-  //splitFreq(vfo[VFOA]);
-  
-  EEPROM.write(1, vx.vfostr[VFOA].millions);
-  EEPROM.write(2, vx.vfostr[VFOA].hundredthousands);
-  EEPROM.write(3, vx.vfostr[VFOA].tenthousands);
-  EEPROM.write(4, vx.vfostr[VFOA].thousands);
-  EEPROM.write(5, vx.vfostr[VFOA].hundreds);
-  EEPROM.write(6, vx.vfostr[VFOA].tens);
-  EEPROM.write(7, vx.vfostr[VFOA].ones);
+    
+  EEPROM.write(1, v.millions);
+  EEPROM.write(2, v.hundredthousands);
+  EEPROM.write(3, v.tenthousands);
+  EEPROM.write(4, v.thousands);
+  EEPROM.write(5, v.hundreds);
+  EEPROM.write(6, v.tens);
+  EEPROM.write(7, v.ones);
 
-  vx.getStr(VFOB);
-  //splitFreq(vfo[VFOB]);
-  
-  EEPROM.write(8,  vx.vfostr[VFOB].millions);
-  EEPROM.write(9,  vx.vfostr[VFOB].hundredthousands);
-  EEPROM.write(10, vx.vfostr[VFOB].tenthousands);
-  EEPROM.write(11, vx.vfostr[VFOB].thousands);
-  EEPROM.write(12, vx.vfostr[VFOB].hundreds);
-  EEPROM.write(13, vx.vfostr[VFOB].tens);
-  EEPROM.write(14, vx.vfostr[VFOB].ones);
+  f=vx.vfo[VFOB];
+  vx.computeVFO(f,&v); 
+
+  EEPROM.write(8,  v.millions);
+  EEPROM.write(9,  v.hundredthousands);
+  EEPROM.write(10, v.tenthousands);
+  EEPROM.write(11, v.thousands);
+  EEPROM.write(12, v.hundreds);
+  EEPROM.write(13, v.tens);
+  EEPROM.write(14, v.ones);
+
 
   EEPROM.write(15, vx.vfoAB);
   
@@ -2163,7 +2166,8 @@ float readMeter(Meter* m) {
 //* Draw the value as an analog mark of SCALE blocks at the LCD real estate
 //*-------------------------------------------------------------------------------------------------
 void showMeter(Meter* m,float v){
-  
+
+  return;
   byte l[3];
   byte x=(int)m->v*5;
   lcd.setCursor(13,0);
