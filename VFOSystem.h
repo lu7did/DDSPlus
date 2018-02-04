@@ -66,6 +66,7 @@ class VFOSystem
       long int vfomax[VFOMAX];
       byte     vforpt[VFOMAX];
       byte     vfoAB=VFOA;
+      void     swapVFO();
       FSTR     vfostr[VFOMAX];
       
       CALLBACK changeVFO=NULL;
@@ -110,6 +111,14 @@ void VFOSystem::setVFOShift(byte VFO,long int shiftVFO) {
   return;
  
 }
+//*---------------------------------------------------------------------------------------------------
+//* Set the parameters of a given VFO Step
+//*---------------------------------------------------------------------------------------------------
+void VFOSystem::swapVFO() {
+   if (vfoAB==VFOA) {vfoAB=VFOB;} else {vfoAB=VFOA;}
+   return;
+}
+
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO Step
 //*---------------------------------------------------------------------------------------------------

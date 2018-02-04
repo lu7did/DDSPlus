@@ -18,29 +18,33 @@ class MenuClass
 {
   public:
   typedef void (*CALLBACK)();
-      typedef struct {
-          char* mText;
-          MenuClass* mChild;
-      } List;
+  typedef struct {
+         char* mText;
+         MenuClass* mChild;
+         } List;
 
       
       byte mItem;
       byte mItemBackup;
-      List x;
-      LinkedList<List*> l = LinkedList<List*>(); 
       
+      boolean CW;
+      boolean CCW;
+      List x;
+      LinkedList<List*> l = LinkedList<List*>();      
 
       
-      MenuClass(CALLBACK u,CALLBACK d,CALLBACK s);
+      MenuClass(CALLBACK u);
       
       void  add(char* t,MenuClass* m);
       char* getText(byte i);
+      char* getCurrentText();
       void  set(byte i);
       byte  get();
       byte  getBackup();
       
       void  setText(byte i,char* c);
       boolean isUpdated();
+      boolean last;
 
 
       
@@ -52,8 +56,7 @@ class MenuClass
       //List* getmem();
       
       CALLBACK update;
-      CALLBACK display;
-      CALLBACK saving;
+
       
   private:    
       
@@ -64,14 +67,14 @@ class MenuClass
 //*-------------------------------------------------------------------------------------------------
 //* Constructor
 //*-------------------------------------------------------------------------------------------------
-MenuClass::MenuClass(CALLBACK u,CALLBACK d,CALLBACK s) {
+MenuClass::MenuClass(CALLBACK u) {
    
    update=u;
-   display=d;
-   saving=s;
-   
+ 
    mItem=0;
    mItemBackup=0;
+   CW=false;
+   CCW=false;
    
    return;
 }
@@ -131,32 +134,35 @@ MenuClass* MenuClass::getChild(byte i) {
 //*-------------------------------------------------------------------------------------------------
 //* Advance or retry menu position, take care of borders
 //*------------------------------------------------------------------------------------------------  
-void MenuClass::move(boolean CW,boolean CCW){
+void MenuClass::move(boolean cCW,boolean cCCW){
 
+  CW=cCW;
+  CCW=cCCW;
+    
   if (l.size() == 0) {return; }  //Is list empty? Return
-  if (update!=NULL) {
+  if (update!=NULL) {      
       update();
-      if (display!=NULL) {display();}
+      //if (display!=NULL) {display();}
       return;
   }
   if (mItem < l.size()-1 && CW==true) {
      mItem++;
-     if (display!=NULL) {display();}
+     //if (display!=NULL) {display();}
      return;
   }
   if (mItem>0 && CCW==true) {
-     if (display!=NULL) {display();}
+     //if (display!=NULL) {display();}
      mItem--;
      return;
   }
 
   if (mItem ==l.size()-1 && CW==true) {
-     if (display!=NULL) {display();}
+     //if (display!=NULL) {display();}
      mItem=0;
      return;
   }
   if (mItem==0 && CCW==true) {
-     if (display!=NULL) {display();}   
+     //if (display!=NULL) {display();}   
      mItem=l.size()-1;
      return;
   }
@@ -165,36 +171,34 @@ void MenuClass::move(boolean CW,boolean CCW){
 //*-------------------------------------------------------------------------------------------------
 //* Backup current object pointer
 //*------------------------------------------------------------------------------------------------       
+char* MenuClass::getCurrentText(){
+
+  if (update!=NULL){return getText(0);}
+  return getText(mItem);
+  
+}
+//*-------------------------------------------------------------------------------------------------
+//* Backup current object pointer
+//*------------------------------------------------------------------------------------------------       
 void MenuClass::backup(){
   
-  byte i=get();
-  MenuClass* z=getChild(i); 
-  z->mItemBackup=z->mItem;
-
+  mItemBackup=mItem;
+  
 }
 //*-------------------------------------------------------------------------------------------------
 //* Restore previous object pointer (reverse a change)
 //*------------------------------------------------------------------------------------------------       
 void MenuClass::restore(){
-  //mItem=mItemBackup;
-  byte i=get();
-  MenuClass* z=getChild(i); 
-  z->mItem=z->mItemBackup;
-
+  mItem=mItemBackup;
 }
 //*-------------------------------------------------------------------------------------------------
 //* Restore previous object pointer (reverse a change)
 //*------------------------------------------------------------------------------------------------       
 void MenuClass::save(){
-  byte i=get();
-  MenuClass* z=getChild(i); 
-
-  z->mItemBackup=z->mItem;
-
-   if (saving==NULL) {return;}
-   
-   saving(); 
   
+  mItemBackup=mItem;
+
+ 
 }
 //*-------------------------------------------------------------------------------------------------
 //* Restore previous object pointer (reverse a change)
