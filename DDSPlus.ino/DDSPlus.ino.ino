@@ -1,7 +1,10 @@
 //*--------------------------------------------------------------------------------------------------
 //* DDSPlus Firmware Version 1.0
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseÃ±o picoFM en su version inicial
+//* Este es el firmware del diseÃ±o de DDS  en su version inicial
+//* Implementación 
+//*         PICOFM      Transceiver basado en DRA881V
+//*         SINPLEA     Receiver SDR usando shield Arduino Elektor
 //* Solo para uso de radioaficionados, prohibido su utilizacion comercial
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
@@ -39,7 +42,8 @@
 //*-------------------------------------------------------------------------------------------------------
 
 #define DEBUG         false
-#define PICOFM        true
+#define PICOFM        false
+#define SINPLEA       true
 
 
 //*--- Program & version identification
@@ -52,6 +56,17 @@
 #define COPYRIGHT "(c) LU7DID 2018"
 
 #endif
+
+#if SINPLEA
+
+#define PROGRAMID "sinpleA"
+#define PROG_VERSION   "1.0"
+#define PROG_BUILD  "000"
+#define COPYRIGHT "(c) LU7DID 2018"
+
+#endif
+
+
 //*----------------------------------------------------------------------------------
 //*  System Status Word
 //*----------------------------------------------------------------------------------
@@ -97,24 +112,8 @@
 
 //*------------------------------------------------------------------------------------------------------------
 //*--- Read Squelch control
-/*
-typedef struct {
-    char* name;
-    byte  pin;
-    int  vmax;
-    int  vscale;
-    float v;
-    float vref;
-    float vant;
-    
-} Meter;
-*/
-/*
-#define SQLPIN           A5
-#define SQLMAX         1023
-#define SQLSCALE          8
-#define SQLREF          5.0
-*/
+//*------------------------------------------------------------------------------------------------------------
+
 
 #define ZERO             0
 #define SERIAL_MAX      16
@@ -133,7 +132,7 @@ typedef struct {
 
 //*--- VFO initialization parameters
 
-//#define VFO_SHIFT          600000
+#define VFO_SHIFT          600000
 #define VFO_START       144000000
 #define VFO_END         147990000
 #define VFO_STEP_10KHz      10000
@@ -143,6 +142,18 @@ typedef struct {
 #endif
 
 
+#if SINPLEA
+
+#define VFO_SHIFT            1000
+#define VFO_START         7000000
+#define VFO_END           7300000
+#define VFO_STEP_1KHz        1000
+#define VFO_STEP_10KHz      10000
+#define VFO_STEP_5KHz        5000
+#define VFO_STEP_1MHZ     1000000
+#define VFO_RESET         7000000
+
+#endif
 //*----------------------------------------[DEFINITION]----------------------------------------------
 
 //*--- Control delays
@@ -165,10 +176,12 @@ typedef struct {
 //*--------------------------------------------------------------------------------------------------
 //* Definitions to manage DRA818V
 //*--------------------------------------------------------------------------------------------------
+#define QUEUEMAX  16        // Queue of incoming characters 
+
 #if PICOFM
 
 #define CTCSSCODEMAX 38
-#define QUEUEMAX  16        // Queue of incoming characters 
+
 
 //*--- Control lines for the DRA818V
 
@@ -177,6 +190,7 @@ typedef struct {
 #define PDPin           11
 
 #endif
+
 
 //*----------------------------------------[INCLUDE]-------------------------------------------------
 #include <LiquidCrystal.h>
@@ -307,7 +321,9 @@ byte RX[8] = {
         
 //*---------------------- Custom fonts for the LCD display
 
+//*---- Debug buffer
 
+char hi[80];
 
 
 //*--------------------------------------------------------------------------------
@@ -406,6 +422,14 @@ MenuClass sql(SQLUpdate);
 
 #endif
 
+//*------------------------------------------------------------------------------------------------
+//* Set here SINPLEA Menu definitions
+//*------------------------------------------------------------------------------------------------
+
+#if SINPLEA
+
+
+#endif
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //*  Setup
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -456,6 +480,7 @@ void setup() {
 
 #endif
 
+#if PICOFM
 //*--- Create special characters for LCD
 
   lcd.createChar(0,RX);
@@ -466,6 +491,7 @@ void setup() {
   lcd.createChar(5,BB5);
   lcd.createChar(6,TX);
   lcd.createChar(7,WATCHDOG);
+#endif
   
   lcd.setCursor(0, 0);        // Place cursor at [0,0]
   lcd.print(String(PROGRAMID)+" v"+String(PROG_VERSION)+"-"+String(PROG_BUILD));
@@ -489,19 +515,28 @@ void setup() {
 //*------ Define Menu related objects
 
  
-#if PICOFM
 
   //*---- Define the VFO System parameters
-  
+
+  //Serial.print("Init VFO System");
+  //Serial.println(VFOA);
+
   vx.setVFOFreq(VFOA,VFO_START);
-  vx.setVFOStep(VFOA,VFO_STEP_10KHz);
+  vx.setVFOStep(VFOA,VFO_STEP_1KHz);
   vx.setVFOBand(VFOA,VFO_START,VFO_END);
 
   vx.setVFOFreq(VFOB,VFO_START);
-  vx.setVFOStep(VFOB,VFO_STEP_10KHz);
+  vx.setVFOStep(VFOB,VFO_STEP_1KHz);
   vx.setVFOBand(VFOB,VFO_START,VFO_END);
 
   vx.setVFO(VFOA);
+
+
+//#*--- Define VFO
+
+#if SINPLEA
+  
+
 
 #endif
 
@@ -606,7 +641,16 @@ void setup() {
   
 #endif
 
+//#*--------------------------------------------------------------------
+//#* Set here SINPLEA Menu Items
+//#*--------------------------------------------------------------------
+#if SINPLEA
+
+
+#endif
   //*--- Load the stored frequency
+
+#if PICOFM
 
   if (FORCEFREQ == 0) {
 
@@ -641,10 +685,11 @@ void setup() {
      }
   } 
 
-  if (vx.vfo[VFOA]<VFO_START || vx.vfo[VFOA]>VFO_END) {vx.vfo[VFOA]=VFO_START;}
-  if (vx.vfo[VFOB]<VFO_START || vx.vfo[VFOB]>VFO_END) {vx.vfo[VFOB]=VFO_START;}
+  
+  //if (vx.vfo[VFOA]<VFO_START || vx.vfo[VFOA]>VFO_END) {vx.vfo[VFOA]=VFO_START;}
+  //if (vx.vfo[VFOB]<VFO_START || vx.vfo[VFOB]>VFO_END) {vx.vfo[VFOB]=VFO_START;}
 
-
+#endif
 
 //*--- Initial value for system operating modes
 
@@ -680,14 +725,18 @@ void setup() {
   doSetFilter();
   doSetGroup();
 
-  showPanel();
 #endif
 
+#if SINPLEA
 
+//**------set here last minute initialization grubblets
+
+#endif
+
+  showPanel();
   
 //*=========================================================================================================
 #if DEBUG
-char hi[80];
 
 //*--- Print Serial Banner (TEST Mode Mostly)
   sprintf(hi,"%s %s Compiled %s %s",PROGRAMID,PROG_VERSION,__TIME__, __DATE__);
@@ -695,6 +744,7 @@ char hi[80];
   sprintf(hi,"(c) %s",COPYRIGHT);
   Serial.print("RAM Free=");
   Serial.println(freeMemory());
+
 #endif
 //*=========================================================================================================
 
@@ -738,12 +788,21 @@ String menuText(byte mItem) {
 //*--------------------------------------------------------------------------------------------
 void showFreq() {
 
-  FSTR v;
-   
-  long int f=vx.vfo[vx.vfoAB];
+  FSTR v;  
   
+  //Serial.println("vfoAB es ");
+  //Serial.println(vx.vfoAB);
+  
+  long int f=vx.vfo[vx.vfoAB];   
+  
+
+  //Serial.print("showFreq ");
+  //Serial.print(f);
+  //Serial.println(vx.vfoAB);
   
   vx.computeVFO(f,&v);
+  sprintf(hi,"Frequency %ld",f);
+  Serial.println(hi);
   
   if (v.millions > 9) {
     lcd.setCursor(2, 1);
@@ -758,6 +817,22 @@ void showFreq() {
   lcd.print(v.hundredthousands);
   lcd.print(v.tenthousands);
   lcd.print(v.thousands);
+
+#if SINPLEA
+  
+  lcd.print(" ");
+  lcd.print(v.hundreds);
+  lcd.print(v.tens);
+
+#endif
+
+  
+  //Serial.print(v.millions);
+  //Serial.print(".");
+  //Serial.print(v.hundredthousands);
+  //Serial.print(v.tenthousands);
+  //Serial.print(v.thousands);
+  
   timepassed = millis();
   memstatus = 0; // Trigger memory write
 
@@ -767,10 +842,14 @@ void showFreq() {
 //* show repeater operation mode at the display
 //*--------------------------------------------------------------------------------------------
 void showRpt() {
+
+#if PICOFM
   
   lcd.setCursor(0,0);
   if (rpt.get()==0){lcd.print(" ");} else {lcd.print("S");}
   //lcd.print(rpt.getText(rpt.get()));
+
+#endif
 
 };
 //*--------------------------------------------------------------------------------------------
@@ -779,19 +858,26 @@ void showRpt() {
 //*--------------------------------------------------------------------------------------------
 void showCTC() {
 
+#if PICOFM
+
   lcd.setCursor(1,0);
   if (ctc.get()==0){lcd.print(" ");} else {lcd.print("T");}
 
+#endif
 };
 //*--------------------------------------------------------------------------------------------
 //* showPwr
 //* show power level at the display
 //*--------------------------------------------------------------------------------------------
 void showPwr() {
+
+#if PICOFM
   
   lcd.setCursor(11,0);
   if (pwr.get()==0) {lcd.print("L");} else {lcd.print("H");}
   return;
+
+#endif
 
 }
 //*--------------------------------------------------------------------------------------------
@@ -800,8 +886,12 @@ void showPwr() {
 //*--------------------------------------------------------------------------------------------
 void showMet() {
 
+#if PICOFM
+
      //showMeter(&sqlMeter,sqlMeter.v);
      return;
+#endif
+
 }
 //*--------------------------------------------------------------------------------------------
 //* showSPD
@@ -809,8 +899,13 @@ void showMet() {
 //*--------------------------------------------------------------------------------------------
 void showSPD() {
 
+#if PICOFM
+
   lcd.setCursor(5,0);
   if (spd.get()==0) {lcd.print(" ");} else {lcd.print("Z");}
+
+#endif
+
 };
 
 //*--------------------------------------------------------------------------------------------
@@ -819,10 +914,13 @@ void showSPD() {
 //*--------------------------------------------------------------------------------------------
 void showSQL() {
 
+#if PICOFM
+
   lcd.setCursor(12,0);
   if (getWord(MSW,CMD)==true) {return;}
   if (digitalRead(A3)==LOW && getWord(MSW,CMD)==false) {lcd.write(byte(5));} else {lcd.write(byte(0));}
 
+#endif
   
 };
 //*--------------------------------------------------------------------------------------------
@@ -831,9 +929,14 @@ void showSQL() {
 //*--------------------------------------------------------------------------------------------
 void showPTT() {
 
+#if PICOFM
+
   lcd.setCursor(4,0);
   if (getWord(MSW,DOG)==true && wdg.get()!=0){lcd.write(byte(7)); lcd.setCursor(4,0);lcd.blink();return;}
   if (getWord(MSW,PTT)==false) {lcd.write(byte(6)); lcd.setCursor(4,0);lcd.noBlink();} else {lcd.print(" ");lcd.setCursor(4,0);lcd.noBlink();}
+#endif
+
+
 };
 /*
 //*--------------------------------------------------------------------------------------------
@@ -873,9 +976,13 @@ void showLPF() {
 //* show DRF filter at the display
 //*--------------------------------------------------------------------------------------------
 void showDRF() {
+
+#if PICOFM
   
   lcd.setCursor(3,0);
   if (getWord(MSW,DRF)==false){lcd.print(char(174));} else {lcd.print(char(42));}
+
+#endif
 
 };
 //*--------------------------------------------------------------------------------------------
@@ -883,9 +990,13 @@ void showDRF() {
 //* show if watchdog is enabled or not
 //*--------------------------------------------------------------------------------------------
 void showDog() {
+
+#if PICOFM
   
   lcd.setCursor(9,0);
   if (wdg.get()==0){lcd.print(" ");} else {lcd.print("W");}
+  
+#endif
 
 };
 
@@ -1012,6 +1123,7 @@ void doSave() {
       showSave();      
       delay(DELAY_SAVE);
 
+#if PICOFM
       
       byte i=menuRoot.get();
       MenuClass* z=menuRoot.l.get(i)->mChild;
@@ -1037,8 +1149,13 @@ void doSave() {
             menuRoot.get() == PREMENU ) && (j!=k)) {doSetFilter();}
 
       */
+      
       vx.vfoAB=vfo.get();
+      Serial.println("Get VfoAB");
+      Serial.println(vx.vfoAB);
+#endif
 
+#if PICOFM
       //if (pwr.get()==0){pwrMeter.v=2.0;} else {pwrMeter.v=5.0;}
       if (stp.get()==0) {
          vx.vfostep[vx.vfoAB]=VFO_STEP_5KHz;
@@ -1050,6 +1167,8 @@ void doSave() {
       setWord(&MSW,GUI,false);
 
       menuRoot.save();
+
+#endif 
       showPanel();
 
 }
@@ -1063,6 +1182,7 @@ void doSave() {
 //* come here with CLI==true so it's either one of the two menu levels
 //*----------------------------------------------------------------------------------------------------
 void backupFSM() {
+     
      byte i=menuRoot.get();
      MenuClass* z=menuRoot.getChild(i);
      z->backup();
@@ -1086,7 +1206,10 @@ void restoreFSM() {
 //*----------------------------------------------------------------------------------------------------
 void processVFO() {
 
+//int v1;
+   
    if (getWord(USW,BCW)==true) {
+       
        vx.updateVFO(vx.vfoAB,vx.vfostep[vx.vfoAB]);
        lcd.setCursor(0,1);
        lcd.print((char)126);
@@ -1094,6 +1217,7 @@ void processVFO() {
    }
    
    if (getWord(USW,BCCW)==true) {
+       
        vx.updateVFO(vx.vfoAB,-vx.vfostep[vx.vfoAB]); 
        lcd.setCursor(0,1);
        lcd.print((char)127);
@@ -1143,6 +1267,8 @@ void CMD_FSM() {
 
    readKeyShield();
 
+#if PICOFM
+
    //*-------------------------------------------------------------------------
    //* Operate Watchdog
    //*-------------------------------------------------------------------------
@@ -1156,38 +1282,54 @@ void CMD_FSM() {
           showPTT();        
        }
 
+#endif
+
    //*-------------------------------------------------------------------------------
    //* Handle PTT  (detect MIC PTT pressed and PTT signal not activated) just pressed
    //*-------------------------------------------------------------------------------
        if (digitalRead(A4)==LOW && getWord(MSW,PTT)==true){
+
         
            setWord(&MSW,PTT,false);
+
+#if PICOFM
+           
            digitalWrite(PTTPin,HIGH);    //*-- Prende TX
            //showMeter(&pwrMeter,pwrMeter.v);
            if (rpt.get()!=0) {vx.swapVFO();showVFO();showFreq();} //If split enabled
+#endif
+           
            digitalWrite(10,LCD_ON);
            TDIM=DIM_DELAY; 
-           
+
+#if PICOFM           
            if (wdg.get()!=0) {TDOG=DOG_DELAY;}
            
            setWord(&MSW,DOG,false);
            showPTT();
+#endif
            
        } else {
         
           if (digitalRead(A4)==HIGH && getWord(MSW,PTT)==false) {
               
               setWord(&MSW,PTT,true);
+#if PICOFM
+              
               digitalWrite(PTTPin,LOW);   //*-- Apaga TX
               //showMeter(&sqlMeter,sqlMeter.v);
               if (rpt.get()!=0) {vx.swapVFO();showVFO();} //If split enabled
               //showFreq();
+#endif              
               showFreq();
               setWord(&MSW,DOG,false);
               showPTT();
           
           }   
        }
+
+#if PICOFM
+       
    //*-------------------------------------------------------------------------
    //* PTT == true means not activated (RX mode)
    //*-------------------------------------------------------------------------
@@ -1197,24 +1339,8 @@ void CMD_FSM() {
    }  
      //*--- Lectura analógica int s=readV(SQLPIN,SQLMAX,SQLSCALE);
      //sqlMeter.v=readMeter(&sqlMeter);
-/*  COLOCAR AQUI LOGICA DE ACTUALIZACION
-     if (sqlMeter.v != sqlMeter.vant && getWord(MSW,CMD)==false) {
-        showMeter(&sqlMeter,sqlMeter.v);
-        TS=DELAY_DISPLAY;
-        setWord(&TSW,FTS,false);
-     } else { 
-       if (getWord(TSW,FTS)==true) {
-           doSetGroup();           //* Call DMOSETUPGROUP to establish current SQL Level
-           showPanel();
-           memstatus=0;
-           timepassed=millis();
-           setWord(&TSW,FTS,false);
-       }
-   /*    
-     }
-     }
-   */  
-   
+
+#endif   
    
 //*-----------------------------------------------------------------------------
 //* Menu management with KEY Shield cualquier cambio enciende LED
@@ -1284,13 +1410,19 @@ void CMD_FSM() {
 //*--------------------------------------------------------------------------------------
       
       if (getWord(USW,BCW)== true || getWord(USW,BCCW)== true) { //S=0 operates VFO and clear signals
+         //Serial.println("call to processVFO");
          processVFO();
       }
 
       if (vx.isVFOChanged(vx.vfoAB)==true) {
+ 
+#if PICOFM
+        
          doSetGroup();
+#endif
+         
          vx.resetVFO(vx.vfoAB);
-      }
+       }
        
        setWord(&USW,BCW,false);
        setWord(&USW,BCCW,false);
@@ -1381,6 +1513,8 @@ void CMD_FSM() {
    setWord(&USW,BCCW,false);             
 
 }
+
+#if PICOFM
 //*****************************************************************************************************
 //*                               Manages DRA818F Configuration
 //*
@@ -1389,6 +1523,8 @@ void CMD_FSM() {
 //*
 //*
 //*****************************************************************************************************
+
+
 //*--------------------------------------------------------------------------------------------
 //* doSetGroup
 //* send commands related to setup group information
@@ -1539,28 +1675,6 @@ void CTCSSUpdate() {
 }
 
 //*--------------------------------------------------------------------------------------------
-//* swapVFO
-//* returns the "other" VFO
-//*--------------------------------------------------------------------------------------------
-byte swapVFO() {
-
-  if (vx.vfoAB==VFOA) {
-     return VFOB;
-  }
-  return VFOA;
-  
-}
-//*--------------------------------------------------------------------------------------------
-//* checkPriority
-//* send commands related to priority channel management
-//*--------------------------------------------------------------------------------------------
-void checkPriority() {
-  
-
-  
-}
-
-//*--------------------------------------------------------------------------------------------
 //* doHandShake
 //* send commands related to handshake information
 //*--------------------------------------------------------------------------------------------
@@ -1597,10 +1711,36 @@ void doSetPD() {
   }
    
 }
+#endif
+
+//*============================================================================================
+//*--------------------------------------------------------------------------------------------
+//* swapVFO
+//* returns the "other" VFO
+//*--------------------------------------------------------------------------------------------
+byte swapVFO() {
+
+  if (vx.vfoAB==VFOA) {
+     return VFOB;
+  }
+  return VFOA;
+  
+}
+//*--------------------------------------------------------------------------------------------
+//* checkPriority
+//* send commands related to priority channel management
+//*--------------------------------------------------------------------------------------------
+void checkPriority() {
+  
+
+  
+}
 //*------------------------------------------------------------------------------------------------------
 //* serialEvent is called when a serial port related interrupt happens
 //*------------------------------------------------------------------------------------------------------
 void serialEvent() {
+
+#if PICOFM
 
   while (Serial.available() && pQueue<=(QUEUEMAX)-1) {
       
@@ -1724,36 +1864,15 @@ void serialEvent() {
          inState=1;
       }
 }
+
+#endif
+
 }
 //*****************************************************************************************************
 //*                               Manages Meter
 //*
-
 //*****************************************************************************************************
 
-
-/*
-//*----------------------------------------[LCD_FSM]---------------------------------------------------
-//* Display analog indicator Read analog pin and returns a scaled value
-//*--------------------------------------------------------------------------------------------------
-void displayV(int V) {
-/*
-lcd.clear();
-lcd.setCursor(0,0);
-lcd.print("<Squelch>");
-lcd.setCursor(3,1);
-lcd.print("[");
-for (int i=0; i <= (V-1); i++){
-   lcd.setCursor(4+i,1);
-   lcd.write(byte(5));   
-}
-lcd.setCursor(12,1);
-lcd.print("]");
-
-
-return ; 
-}
-*/
 //*----------------------------------------[LCD_FSM]---------------------------------------------------
 //* Manages frequency display at the LCD
 //*--------------------------------------------------------------------------------------------------
@@ -1866,12 +1985,15 @@ ISR(TIMER1_OVF_vect) // interrupt service routine that wraps a user defined func
 
 //*--- LCD Light delay control
 
+#if PICOFM
+
   if (TDIM>0 && getWord(MSW,PTT)==true) {
       TDIM--;
       if (TDIM==0 && spd.get() == 1) {
          digitalWrite(10,LCD_OFF);
       }
   }
+#endif
 
 //*--- Serve real time clock
 
@@ -1975,6 +2097,8 @@ void setWord(byte* SysWord,byte v, boolean val) {
 
 void storeMEM() {
 
+#if PICOFM
+
   FSTR v;   
   long int f=vx.vfo[VFOA];
   vx.computeVFO(f,&v);
@@ -2022,6 +2146,8 @@ void storeMEM() {
   EEPROM.write(29,TSW);
 
   EEPROM.write(30,EEPROM_COOKIE);
+
+#endif
 
   memstatus = 1;  // Let program know memory has been written
 };
@@ -2097,43 +2223,5 @@ boolean readButton() {
  //return digitalRead(11); 
  //if(digitalRead(11)==0) return falseEncodeOK;   
 }
-/*  
-//*-------------------------------------------------------------------------------------------------
-//* Get a sample of the associated variable
-//*-------------------------------------------------------------------------------------------------
-float readMeter(Meter* m) {
-  
-  int vread=(int)analogRead(m->pin);
-  
-  float vpu=m->vref/m->vmax;
-  m->v=vpu*(float)(vread);
-  return m->v;
-  
-}
-//*-------------------------------------------------------------------------------------------------
-//* Draw the value as an analog mark of SCALE blocks at the LCD real estate
-//*-------------------------------------------------------------------------------------------------
-void showMeter(Meter* m,float v){
-
-  //return;
-  byte l[3];
-  byte x=(int)(m->v*3);
-  lcd.setCursor(13,0);
-  lcd.print(m->name);
-
-  if (x>=10){l[0]=5;l[1]=5;l[2]=x-10;}
-  if (x>=5 && x<10){l[0]=5;l[1]=x-5;l[2]=0;}
-  if (x>=0 && x<5) {l[0]=x-5;l[1]=0;l[2]=0;}
-  
-  lcd.setCursor(13,1);
-  
-  lcd.write((byte)l[0]);
-  lcd.write((byte)l[1]);
-  lcd.write((byte)l[2]);
-
-  m->vant=m->v;
-  
-}
-*/
 
 
