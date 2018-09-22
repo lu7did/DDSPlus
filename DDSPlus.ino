@@ -110,10 +110,10 @@
 #define JUP       B00000100
 #define JDOWN     B00001000
 
+#if PICOFM
 //*------------------------------------------------------------------------------------------------------------
 //*--- Read Squelch control
 //*------------------------------------------------------------------------------------------------------------
-
 
 #define ZERO             0
 #define SERIAL_MAX      16
@@ -124,8 +124,10 @@
 #define LPF 0
 #define PRE 0
 
+#endif
+
 //*-----------------------------------------------------------------------------------------------
-//* Control lines and VFO Definition
+//* Control lines and VFO Definition [Project dependent]
 //*-----------------------------------------------------------------------------------------------
 #if PICOFM
 
@@ -141,7 +143,9 @@
 
 #endif
 
-
+//*-----------------------------------------------------------------------------------------------
+//* Control lines and VFO Definition [Project dependent]
+//*-----------------------------------------------------------------------------------------------
 #if SINPLEA
 
 #define VFO_SHIFT            1000
@@ -172,16 +176,15 @@
 #define LCD_ON        1
 #define LCD_OFF       0
 
+#define QUEUEMAX  16        // Queue of incoming characters 
+
 
 //*--------------------------------------------------------------------------------------------------
 //* Definitions to manage DRA818V
 //*--------------------------------------------------------------------------------------------------
-#define QUEUEMAX  16        // Queue of incoming characters 
-
 #if PICOFM
 
 #define CTCSSCODEMAX 38
-
 
 //*--- Control lines for the DRA818V
 
@@ -196,6 +199,7 @@
 #include <LiquidCrystal.h>
 #include <stdio.h>
 #include <EEPROM.h>
+
 #include "MemSizeLib.h"
 #include "VFOSystem.h"
 #include "ClassMenu.h"
@@ -292,6 +296,19 @@ byte RX[8] = {
 };
 
 #endif
+
+
+#if SINPLEA
+//*=======================================================================================================================================================
+//* SI5351 Library
+//*=======================================================================================================================================================
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include <Adafruit_SI5351.h>
+
+Adafruit_SI5351 clkVFO = Adafruit_SI5351();
+#endif
+
 //*--------------------------------------------------------------------------------------------
 //*---- Definitions for various LCD display shields
 //*--------------------------------------------------------------------------------------------
@@ -532,13 +549,6 @@ void setup() {
   vx.setVFO(VFOA);
 
 
-//#*--- Define VFO
-
-#if SINPLEA
-  
-
-
-#endif
 
   //*---
 
@@ -732,6 +742,21 @@ void setup() {
 //**------set here last minute initialization grubblets
 
 #endif
+//#*--- Define VFO
+
+#if SINPLEA
+  
+  if (clkVFO.begin() != ERROR_NONE)
+  {
+     Serial.print("Error");
+     while(1);
+  }
+  Serial.println("OK");
+  clkVFO.enableOutputs(true);
+  clkVFO.setupPLL(SI5351_PLL_A, 36, 0, 1000); //900 MHz
+  //setSI5351freq (6000);
+
+#endif
 
   showPanel();
   
@@ -789,20 +814,23 @@ String menuText(byte mItem) {
 void showFreq() {
 
   FSTR v;  
-  
-  //Serial.println("vfoAB es ");
-  //Serial.println(vx.vfoAB);
-  
-  long int f=vx.vfo[vx.vfoAB];   
-  
 
-  //Serial.print("showFreq ");
-  //Serial.print(f);
-  //Serial.println(vx.vfoAB);
-  
+    
+  long int f=vx.vfo[vx.vfoAB];   
+  long int fDDS=f/1000;
+    
   vx.computeVFO(f,&v);
+  
   sprintf(hi,"Frequency %ld",f);
   Serial.println(hi);
+  sprintf(hi,"FrequencyDDS %ld",fDDS);
+  Serial.println(hi);
+
+//*---- Set DDS with new frequency
+
+  setDDSfreq(fDDS);
+
+//*---- Prepare to display
   
   if (v.millions > 9) {
     lcd.setCursor(2, 1);
@@ -2206,8 +2234,6 @@ int uppercase (int charbytein)
   return charbytein;
 }
 
-
-
 //*=======================================================================================================================================================
 //* Super Library ELEC Freaks LCD Key Shield
 //*=======================================================================================================================================================
@@ -2223,5 +2249,48 @@ boolean readButton() {
  //return digitalRead(11); 
  //if(digitalRead(11)==0) return falseEncodeOK;   
 }
+#if SINPLEA
 
+//*==============================================================================================================
+//* Set DDS Frequency fur SI5351 
+//* Receive frequency to set expressed in KHz
+//*==============================================================================================================
+void setDDSfreq (unsigned long freq)
+{
 
+ //*---- trace code make into DEBUG later
+ sprintf(hi,"DDS frequency= %ld",freq);
+ Serial.println(hi);
+ //*----
+ 
+ unsigned long f2;
+ unsigned long f3;
+ unsigned long f4;
+ unsigned long f5;
+ unsigned long div2;
+ unsigned int Divider2;
+ unsigned int rdiv;
+ 
+ if (freq > 0) {
+    f2=(freq-12)*4;
+    if (f2<1000) {
+       rdiv = 16;
+       f2 = f2 * 16;
+    }  else {
+       rdiv = 1;
+    }
+ 
+ div2 = 900000000/f2;
+ f4 = div2/1000;
+ f5=div2-(f4*1000);
+ clkVFO.setupMultisynth(1, SI5351_PLL_A, f4, f5,1000);
+ 
+ if (rdiv == 16) {
+    clkVFO.setupRdiv(1, SI5351_R_DIV_16);
+ }
+ if (rdiv == 1) {
+    clkVFO.setupRdiv(1, SI5351_R_DIV_1);
+ }
+}
+}
+#endif
