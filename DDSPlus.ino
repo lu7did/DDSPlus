@@ -45,28 +45,6 @@
 #define PICOFM        false
 #define SINPLEA       true
 
-
-//*--- Program & version identification
-
-#if PICOFM
-
-#define PROGRAMID "picoFM"
-#define PROG_VERSION   "1.0"
-#define PROG_BUILD  "030"
-#define COPYRIGHT "(c) LU7DID 2018"
-
-#endif
-
-#if SINPLEA
-
-#define PROGRAMID "sinpleA"
-#define PROG_VERSION   "1.0"
-#define PROG_BUILD  "000"
-#define COPYRIGHT "(c) LU7DID 2018"
-
-#endif
-
-
 //*----------------------------------------------------------------------------------
 //*  System Status Word
 //*----------------------------------------------------------------------------------
@@ -101,7 +79,7 @@
 #define SQ        B00010000
 #define MIC       B00100000
 #define KDOWN     B01000000 
-#define BUSY      B10000000
+#define BUSY      B10000000       //* Used for Squelch Open in picoFM and for connected to DDS on sinpleA
 
 //*----- Joystick Control Word (JSW)
 
@@ -110,56 +88,7 @@
 #define JUP       B00000100
 #define JDOWN     B00001000
 
-#if PICOFM
-//*------------------------------------------------------------------------------------------------------------
-//*--- Read Squelch control
-//*------------------------------------------------------------------------------------------------------------
 
-#define ZERO             0
-#define SERIAL_MAX      16
-#define VOLUME           5
-#define EEPROM_COOKIE  0x1f
-
-#define HPF 0
-#define LPF 0
-#define PRE 0
-
-#endif
-
-//*-----------------------------------------------------------------------------------------------
-//* Control lines and VFO Definition [Project dependent]
-//*-----------------------------------------------------------------------------------------------
-#if PICOFM
-
-
-//*--- VFO initialization parameters
-
-#define VFO_SHIFT          600000
-#define VFO_START       144000000
-#define VFO_END         147990000
-#define VFO_STEP_10KHz      10000
-#define VFO_STEP_5KHz        5000
-#define VFO_STEP_1MHZ     1000000
-
-#endif
-
-//*-----------------------------------------------------------------------------------------------
-//* Control lines and VFO Definition [Project dependent]
-//*-----------------------------------------------------------------------------------------------
-#if SINPLEA
-
-#define VFO_SHIFT            1000
-#define VFO_START         7000000
-#define VFO_END           7300000
-#define VFO_STEP_1KHz        1000
-#define VFO_STEP_10KHz      10000
-#define VFO_STEP_5KHz        5000
-#define VFO_STEP_1MHz     1000000
-#define VFO_STEP_100Hz        100
-#define VFO_STEP_100KHz    100000
-#define VFO_RESET         7000000
-
-#endif
 //*----------------------------------------[DEFINITION]----------------------------------------------
 
 //*--- Control delays
@@ -180,30 +109,6 @@
 
 #define QUEUEMAX  16        // Queue of incoming characters 
 
-
-//*--------------------------------------------------------------------------------------------------
-//* Definitions to manage DRA818V
-//*--------------------------------------------------------------------------------------------------
-#if PICOFM
-
-#define CTCSSCODEMAX 38
-
-//*--- Control lines for the DRA818V
-
-#define PTTPin          13
-#define HLPin           12
-#define PDPin           11
-
-#endif
-
-
-#if SINPLEA
-#define BANDMAX 3
-
-
-#endif
-
-
 //*----------------------------------------[INCLUDE]-------------------------------------------------
 #include <LiquidCrystal.h>
 #include <stdio.h>
@@ -212,6 +117,8 @@
 #include "MemSizeLib.h"
 #include "VFOSystem.h"
 #include "ClassMenu.h"
+#include "picoFM.h"
+#include "sinpleA.h"
 
 void  Encoder_san();
 
@@ -220,104 +127,6 @@ void  Encoder_san();
 //*-------------------------------------------------------------------------------------------------
 void showFreq();   //Prototype fur display used on callback
 VFOSystem vx(showFreq,NULL);
-
-
-#if PICOFM
-//*==============================================================================================================================
-//*    DefiniciÃ²n de custom characters
-//*==============================================================================================================================
-byte BB3[8] = {
-  B11100,
-  B11100,
-  B11100,
-  B11100,
-  B11100,
-  B11100,
-  B11100,
-};
-
- 
-byte BB5[8] = {
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-};
-byte BB1[8] = {
-  B10000,
-  B10000,
-  B10000,
-  B10000,
-  B10000,
-  B10000,
-  B10000,
-};
-byte BB2[8] = {
-  B11000,
-  B11000,
-  B11000,
-  B11000,
-  B11000,
-  B11000,
-  B11000,
-};
-byte BB4[8] = {
-  B11110,
-  B11110,
-  B11110,
-  B11110,
-  B11110,
-  B11110,
-  B11110,
-};
-
-byte TX[8] = {
-  B11111,
-  B10001,
-  B11011,
-  B11011,
-  B11011,
-  B11011,
-  B11111,
-};
-
-byte WATCHDOG[8] = {
-  B10001,
-  B10001,
-  B01010,
-  B00100,
-  B01010,
-  B10001,
-  B10001,
-};
-
-byte RX[8] = {
-  B11111,
-  B10001,
-  B10001,
-  B10001,
-  B10001,
-  B10001,
-  B11111,
-};
-
-#endif
-
-
-#if SINPLEA
-//*=======================================================================================================================================================
-//* SI5351 Library
-//*=======================================================================================================================================================
-#include <Adafruit_Sensor.h>
-#include <Wire.h>
-#include <Adafruit_SI5351.h>
-
-Adafruit_SI5351 clkVFO = Adafruit_SI5351();
-
-#endif
 
 //*--------------------------------------------------------------------------------------------
 //*---- Definitions for various LCD display shields
@@ -346,8 +155,6 @@ Adafruit_SI5351 clkVFO = Adafruit_SI5351();
        #define btnNONE   5   
        #define btnEncodeOK  6
         
-//*---------------------- Custom fonts for the LCD display
-
 //*---- Debug buffer
 
 char hi[80];
@@ -402,68 +209,10 @@ int_fast32_t menupassed = millis();
 
 int memstatus   = 1;           // value to notify if memory is current or old. 0=old, 1=current.
 
+//*------ define root for al the menu system
+
 MenuClass menuRoot(NULL);
 
-#if PICOFM
-
-void CTCSSUpdate();
-void SQLUpdate();
-
-
-#define PWRMENU 0
-#define RPTMENU 1
-#define SPDMENU 2
-#define BDWMENU 3
-/*
-#define HPFMENU 4
-#define LPFMENU 5
-#define PREMENU 6
-*/
-#define TONMENU 4
-#define CTCMENU 5
-#define VFOMENU 6
-#define STPMENU 7
-#define WDGMENU 8
-#define SQLMENU 9
-
-MenuClass pwr(NULL);
-MenuClass rpt(NULL);
-MenuClass spd(NULL);
-MenuClass bdw(NULL);
-/*
-MenuClass hpf(NULL,NULL,NULL);
-MenuClass lpf(NULL,NULL,NULL);
-MenuClass pre(NULL,NULL,NULL);
-*/
-MenuClass ton(NULL);
-MenuClass ctc(CTCSSUpdate);
-MenuClass vfo(NULL);
-MenuClass stp(NULL);
-MenuClass wdg(NULL);
-MenuClass sql(SQLUpdate);
-
-//*------------------------------------------------------------------------------------------------
-//* Init meter management objects
-//*------------------------------------------------------------------------------------------------
-//Meter sqlMeter;
-//Meter pwrMeter;
-
-#endif
-
-//*------------------------------------------------------------------------------------------------
-//* Set here SINPLEA Menu definitions
-//*------------------------------------------------------------------------------------------------
-
-#if SINPLEA
-
-void BandUpdate();
-MenuClass band(BandUpdate);
-MenuClass vfo(NULL);
-MenuClass stp(NULL);
-
-
-
-#endif
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //*  Setup
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -512,9 +261,6 @@ void setup() {
   digitalWrite(A3, INPUT);     //Enable internal pull-up resistor for Squelch
   digitalWrite(A4, INPUT);     //Enable internal pull-up resistor for PTT Keyer
 
-#endif
-
-#if PICOFM
 //*--- Create special characters for LCD
 
   lcd.createChar(0,RX);
@@ -525,7 +271,9 @@ void setup() {
   lcd.createChar(5,BB5);
   lcd.createChar(6,TX);
   lcd.createChar(7,WATCHDOG);
+
 #endif
+//*=====================================================================================
   
   lcd.setCursor(0, 0);        // Place cursor at [0,0]
   lcd.print(String(PROGRAMID)+" v"+String(PROG_VERSION)+"-"+String(PROG_BUILD));
@@ -535,23 +283,8 @@ void setup() {
 
   delay(DELAY_DISPLAY);
   lcd.clear();
-/*
-//*------  Define sql meter
-  
-  sqlMeter.name =(char*)"sql";
-  sqlMeter.pin  = 5;
-  sqlMeter.vmax = 1023;
-  sqlMeter.vref = 5.0;
-  sqlMeter.vscale = 3;
-  sqlMeter.v=0.0;
-  sqlMeter.vant=0.0;
-*/
-//*------ Define Menu related objects
 
- 
-
-  //*---- Define the VFO System parameters
-
+//*---- Define the VFO System parameters
  
   vx.setVFOFreq(VFOA,VFO_START);
   vx.setVFOStep(VFOA,VFO_STEP_1KHz);
@@ -562,13 +295,6 @@ void setup() {
   vx.setVFOBand(VFOB,VFO_START,VFO_END);
 
   vx.setVFO(VFOA);
-
-
-
-  //*---
-
-//*--- Initialization of Squelch meter 
-//sqlMeter.v=readMeter(&sqlMeter);  
  
     
 //*--- initializes the frequency step for both VFO A & B
@@ -596,18 +322,15 @@ void setup() {
   serialQueue[0]=0x00;
 
 #if PICOFM
-
+//*============================================================================================
+//* Define master menu and lower level tree for picoFM
+//*============================================================================================
 //*---- Setup Master system menus
 
   menuRoot.add((char*)"Power",&pwr);
   menuRoot.add((char*)"Split",&rpt);
   menuRoot.add((char*)"SPD",&spd);
   menuRoot.add((char*)"BDW",&bdw);
-  /*
-  menuRoot.add((char*)"HPF",&hpf);
-  menuRoot.add((char*)"LPF",&lpf);
-  menuRoot.add((char*)"Pre",&pre);
-  */
   menuRoot.add((char*)"Tone",&ton);
   menuRoot.add((char*)"CTCSS",&ctc);
   menuRoot.add((char*)"VFO",&vfo);
@@ -627,16 +350,7 @@ void setup() {
   
   bdw.add((char*)"12.5 KHz",NULL);
   bdw.add((char*)"25.0 KHz",NULL);
-/*
-  hpf.add((char*)"Off",NULL);
-  hpf.add((char*)"On",NULL);
-
-  lpf.add((char*)"Off",NULL);
-  lpf.add((char*)"On",NULL);
-
-  pre.add((char*)"Off",NULL);
-  pre.add((char*)"On",NULL);
-*/  
+  
   ton.add((char*)"Off",NULL);
   ton.add((char*)"On",NULL);
   
@@ -652,25 +366,15 @@ void setup() {
   wdg.add((char*)"Off",NULL);
 
   sql.add((char*)"SQL[0]",NULL);
-/*
-  sql.add((char*)"[0]",NULL);
-  sql.add((char*)"[1]",NULL); 
-  sql.add((char*)"[2]",NULL);  
-  sql.add((char*)"[3]",NULL); 
-  sql.add((char*)"[4]",NULL);
-  sql.add((char*)"[5]",NULL);
-  sql.add((char*)"[6]",NULL);
-  sql.add((char*)"[7]",NULL);
-  sql.add((char*)"[8]",NULL);
-*/
   
 #endif
+//*============================================================================================
 
-//#*--------------------------------------------------------------------
-//#* Set here SINPLEA Menu Items
-//#*--------------------------------------------------------------------
+
 #if SINPLEA
-
+//*============================================================================================
+//* Define master menu and lower level tree for simpleA
+//*============================================================================================
   menuRoot.add((char*)"Band",&band);
   menuRoot.add((char*)"VFO",&vfo);
   menuRoot.add((char*)"Step",&stp);
@@ -689,6 +393,7 @@ void setup() {
 
 #endif
   //*--- Load the stored frequency
+//*============================================================================================
 
 #if PICOFM
 
@@ -731,7 +436,9 @@ void setup() {
 
 #endif
 
+//**********************************************************************************************
 //*--- Initial value for system operating modes
+//**********************************************************************************************
 
   setWord(&MSW,CMD,false);
   setWord(&MSW,GUI,false);
@@ -757,10 +464,10 @@ void setup() {
   setWord(&JSW,JDOWN,false);
 
 
-//*--------- Attempt to establish contact with the DRA018F module
-
-
 #if PICOFM
+//===================================================================================
+//* DRA018V module initialization and setup
+//===================================================================================
 
   doHandShake();
   doSetVolume();
@@ -768,15 +475,13 @@ void setup() {
   doSetGroup();
 
 #endif
+//===================================================================================
+
 
 #if SINPLEA
-
-//**------set here last minute initialization grubblets
-
-#endif
-//#*--- Define VFO
-
-#if SINPLEA
+//===================================================================================
+//* SI5351 DDS  module initialization and setup
+//===================================================================================
   
   if (clkVFO.begin() != ERROR_NONE)
   {
@@ -791,12 +496,10 @@ void setup() {
   clkVFO.enableOutputs(true);
   clkVFO.setupPLL(SI5351_PLL_A, 36, 0, 1000); //900 MHz
   
-  //setSI5351freq (6000);
-
 #endif
+//===================================================================================
 
-  showPanel();
-  
+
 //*=========================================================================================================
 #if DEBUG
 
@@ -810,24 +513,12 @@ void setup() {
 #endif
 //*=========================================================================================================
 
-}
-/*
-//*---------------------------------------------------------------------------------------------------------------
-//* Test code to print a given menu class
-//*---------------------------------------------------------------------------------------------------------------
-void printList(MenuClass* r){
-  char hi[80];
-  
-  for(int i = 0; i < r->l.size(); i++){
-
-    sprintf(hi,"Class Object index[%2d] mItem[%2d] Text[%s] Size[%1d]",i,r->mItem,r->l.get(i)->mText,r->l.size());
-    Serial.println(hi);
-  
-   }
+//***********************************
+//* End of initialization and setup *
+//***********************************
+  showPanel();
 
 }
-
-*/
 //*****************************************************************************************************
 //*                               MenÃº Finite Status Machine (FSM)
 //*
@@ -857,15 +548,15 @@ void showFreq() {
   long int fDDS=f/1000;
     
   vx.computeVFO(f,&v);
-  
+
+#if DEBUG  
   sprintf(hi,"Frequency %ld",f);
   Serial.println(hi);
   sprintf(hi,"FrequencyDDS %ld",fDDS);
   Serial.println(hi);
+#endif
 
-//*---- Set DDS with new frequency
 
-  setDDSfreq(fDDS);
 
 //*---- Prepare to display
   
@@ -884,26 +575,29 @@ void showFreq() {
   lcd.print(v.thousands);
 
 #if SINPLEA
-  
+//*******************************
+//* Setup DDS Frequency         *
+//*******************************
+  //*---- Set DDS with new frequency
+  setDDSfreq(fDDS);
+
   lcd.print(" ");
   lcd.print(v.hundreds);
   lcd.print(v.tens);
 
 #endif
-
-  
-  //Serial.print(v.millions);
-  //Serial.print(".");
-  //Serial.print(v.hundredthousands);
-  //Serial.print(v.tenthousands);
-  //Serial.print(v.thousands);
   
   timepassed = millis();
   memstatus = 0; // Trigger memory write
 
 };
 
+
 #if PICOFM
+//****************************************************
+//* picoFM GUI and Panel related unique functions    *
+//****************************************************
+
 //*--------------------------------------------------------------------------------------------
 //* showRpt
 //* show repeater operation mode at the display
@@ -990,68 +684,16 @@ void showPTT() {
 
 
 };
-#endif
 
-#if SINPLEA
-//*--------------------------------------------------------------------------------------------
-//* showSQL
-//* show SQL operation mode at the display
-//*--------------------------------------------------------------------------------------------
-void showDDS() {
-
-
-  lcd.setCursor(12,0);
-  if (getWord(USW,BUSY)==true) {lcd.print("*");} else {lcd.print("-");}
- 
-  
-};
-#endif
-
-/*
-//*--------------------------------------------------------------------------------------------
-//* showPre
-//* show pre-emphasis filter at the display
-//*--------------------------------------------------------------------------------------------
-void showPre() {
-  
-  lcd.setCursor(8,0);
-  if (pre.get()==0){lcd.print(" ");} else {lcd.print("P");}
-
-};
-//*--------------------------------------------------------------------------------------------
-//* showHPF
-//* show HPF filter at the display
-//*--------------------------------------------------------------------------------------------
-void showHPF() {
-  
-  lcd.setCursor(7,0);
-  if (hpf.get()==0){lcd.print(" ");} else {lcd.print("H");}
-
-};
-//*--------------------------------------------------------------------------------------------
-//* showLPF
-//* show LPF filter at the display
-//*--------------------------------------------------------------------------------------------
-void showLPF() {
-  
-  lcd.setCursor(6,0);
-  if (lpf.get()==0){lcd.print(" ");} else {lcd.print("L");}
-
-};
-
-*/
 //*--------------------------------------------------------------------------------------------
 //* showDRF
 //* show DRF filter at the display
 //*--------------------------------------------------------------------------------------------
 void showDRF() {
-
-#if PICOFM
   
   lcd.setCursor(3,0);
   if (getWord(MSW,DRF)==false){lcd.print(char(174));} else {lcd.print(char(42));}
 
-#endif
 
 };
 //*--------------------------------------------------------------------------------------------
@@ -1060,15 +702,35 @@ void showDRF() {
 //*--------------------------------------------------------------------------------------------
 void showDog() {
 
-#if PICOFM
   
   lcd.setCursor(9,0);
   if (wdg.get()==0){lcd.print(" ");} else {lcd.print("W");}
   
-#endif
 
 };
 
+#endif
+
+
+#if SINPLEA
+//****************************************************
+//* sinpleA GUI and Panel related unique functions    *
+//****************************************************
+//*--------------------------------------------------------------------------------------------
+//* showDDS
+//* show DDS connection or error condition at the display
+//*--------------------------------------------------------------------------------------------
+void showDDS() {
+
+  lcd.setCursor(12,0);
+  if (getWord(USW,BUSY)==true) {lcd.print("*");} else {lcd.print("-");}
+ 
+};
+#endif
+
+//****************************************************
+//* Common GUI and Panel related unique functions    *
+//****************************************************
 
 //*--------------------------------------------------------------------------------------------
 //* showVFO
@@ -1132,9 +794,7 @@ void showPanel() {
       return;
       
    } else {
-      //char hi[80];
-      //sprintf(hi,"item=%1d",menuRoot.get());
-      //Serial.println(hi);
+ 
       lcd.clear();
       lcd.setCursor(0,0);
       lcd.print("<"+String(menuRoot.get())+"> "+String(menuRoot.getText(menuRoot.get())));
@@ -1190,6 +850,53 @@ void showSave(){
       lcd.print("Saving....");
   
 }
+#if PICOFM
+//*--------------------------------------------------------------------------------------------
+//* savepicoFM
+//* save specifics of picoFM
+//*--------------------------------------------------------------------------------------------
+void savepicoFM() {
+
+      //*--- Detect changes that needs to be reflected thru commands to the ChipSet
+      if ( (menuRoot.get() == PWRMENU) && (j!=k)) {doSetPower();}
+      if ( (menuRoot.get() == SPDMENU) && (j!=k)) {doSetPD();}
+      
+      
+      if ( (menuRoot.get() == STPMENU ||
+            menuRoot.get() == RPTMENU ||
+            menuRoot.get() == SQLMENU ||
+            menuRoot.get() == CTCMENU ||
+            menuRoot.get() == TONMENU ||
+            menuRoot.get() == VFOMENU ||
+            menuRoot.get() == BDWMENU ) && (j!=k)) {doSetGroup();}
+
+      if (stp.get()==0) {
+         vx.vfostep[vx.vfoAB]=VFO_STEP_5KHz;
+      } else {
+         vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;
+      }   
+
+}
+#endif
+
+#if SINPLEA
+//*--------------------------------------------------------------------------------------------
+//* savesinpleA
+//* save specifics of sinpleA
+//*--------------------------------------------------------------------------------------------
+void savesinpleA() {
+
+     switch(stp.get()) {
+         case 0:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100Hz;break;}
+         case 1:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_1KHz;break;}
+         case 2:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;break;}
+         case 3:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100KHz;break;}
+         default:                  {vx.vfostep[vx.vfoAB]=VFO_STEP_1MHz;break;}
+     }    
+  
+}
+#endif
+
 //*--------------------------------------------------------------------------------------------
 //* doSave
 //* show frequency at the display
@@ -1205,47 +912,23 @@ void doSave() {
       byte j=z->mItem;
       byte k=z->mItemBackup;
 
-#if PICOFM
-      //*--- Detect changes that needs to be reflected thru commands to the ChipSet
-
-      if ( (menuRoot.get() == PWRMENU) && (j!=k)) {doSetPower();}
-      if ( (menuRoot.get() == SPDMENU) && (j!=k)) {doSetPD();}
-      
-      
-      if ( (menuRoot.get() == STPMENU ||
-            menuRoot.get() == RPTMENU ||
-            menuRoot.get() == SQLMENU ||
-            menuRoot.get() == CTCMENU ||
-            menuRoot.get() == TONMENU ||
-            menuRoot.get() == VFOMENU ||
-            menuRoot.get() == BDWMENU ) && (j!=k)) {doSetGroup();}
- 
-#endif
-
 //*--- Query VFO status
 
       vx.vfoAB=vfo.get();
 
-
+//**************************************************
+//* Device specific parameter saving               *
+//**************************************************
 #if PICOFM
-      if (stp.get()==0) {
-         vx.vfostep[vx.vfoAB]=VFO_STEP_5KHz;
-      } else {
-         vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;
-      }   
-#endif 
-
-#if SINPLEA
-     //byte x=stp.get();
-     switch(stp.get()) {
-         case 0:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100Hz;}
-         case 1:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_1KHz;}
-         case 2:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;}
-         case 3:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100KHz;}
-         default:                  {vx.vfostep[vx.vfoAB]=VFO_STEP_1MHz;}
-     }    
+      savepicoFM(); 
 #endif
 
+
+#if SINPLEA
+     savesinpleA();
+     
+#endif
+//***************************************************
 
       setWord(&MSW,CMD,false);
       setWord(&MSW,GUI,false);
@@ -1606,7 +1289,6 @@ void CMD_FSM() {
 //*
 //*
 //*****************************************************************************************************
-
 
 //*--------------------------------------------------------------------------------------------
 //* doSetGroup
@@ -2334,11 +2016,9 @@ boolean readButton() {
  int v = analogRead(A0);      
  if (v>1000) {return true;} else {return false;}
  
- //return digitalRead(11); 
- //if(digitalRead(11)==0) return falseEncodeOK;   
+
 }
 #if SINPLEA
-
 //*==============================================================================================================
 //* Set DDS Frequency fur SI5351 
 //* Receive frequency to set expressed in KHz
@@ -2347,9 +2027,12 @@ void setDDSfreq (unsigned long freq)
 {
 
  //*---- trace code make into DEBUG later
+
+#if DEBUG 
  sprintf(hi,"DDS frequency= %ld",freq);
  Serial.println(hi);
- //*----
+#endif
+ 
  
  unsigned long f2;
  unsigned long f3;
