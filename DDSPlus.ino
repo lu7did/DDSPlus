@@ -154,7 +154,9 @@
 #define VFO_STEP_1KHz        1000
 #define VFO_STEP_10KHz      10000
 #define VFO_STEP_5KHz        5000
-#define VFO_STEP_1MHZ     1000000
+#define VFO_STEP_1MHz     1000000
+#define VFO_STEP_100Hz        100
+#define VFO_STEP_100KHz    100000
 #define VFO_RESET         7000000
 
 #endif
@@ -456,6 +458,9 @@ MenuClass sql(SQLUpdate);
 
 void BandUpdate();
 MenuClass band(BandUpdate);
+MenuClass vfo(NULL);
+MenuClass stp(NULL);
+
 
 
 #endif
@@ -547,9 +552,7 @@ void setup() {
 
   //*---- Define the VFO System parameters
 
-  //Serial.print("Init VFO System");
-  //Serial.println(VFOA);
-
+ 
   vx.setVFOFreq(VFOA,VFO_START);
   vx.setVFOStep(VFOA,VFO_STEP_1KHz);
   vx.setVFOBand(VFOA,VFO_START,VFO_END);
@@ -669,7 +672,20 @@ void setup() {
 #if SINPLEA
 
   menuRoot.add((char*)"Band",&band);
+  menuRoot.add((char*)"VFO",&vfo);
+  menuRoot.add((char*)"Step",&stp);
+
   band.add((char*)"Off      ",NULL);
+
+  vfo.add((char*)"A",NULL);
+  vfo.add((char*)"B",NULL);
+
+  stp.add((char*)"100  Hz",NULL);
+  stp.add((char*)" 1  KHz",NULL);
+  stp.add((char*)"10  KHz",NULL);
+  stp.add((char*)"100 KHz",NULL);
+  stp.add((char*)"  1 MHz",NULL);
+  
 
 #endif
   //*--- Load the stored frequency
@@ -986,8 +1002,7 @@ void showDDS() {
 
   lcd.setCursor(12,0);
   if (getWord(USW,BUSY)==true) {lcd.print("*");} else {lcd.print("-");}
-  
-
+ 
   
 };
 #endif
@@ -1184,13 +1199,13 @@ void doSave() {
       showSave();      
       delay(DELAY_SAVE);
 
-#if PICOFM
       
       byte i=menuRoot.get();
       MenuClass* z=menuRoot.l.get(i)->mChild;
       byte j=z->mItem;
       byte k=z->mItemBackup;
-   
+
+#if PICOFM
       //*--- Detect changes that needs to be reflected thru commands to the ChipSet
 
       if ( (menuRoot.get() == PWRMENU) && (j!=k)) {doSetPower();}
@@ -1204,32 +1219,38 @@ void doSave() {
             menuRoot.get() == TONMENU ||
             menuRoot.get() == VFOMENU ||
             menuRoot.get() == BDWMENU ) && (j!=k)) {doSetGroup();}
-     /* 
-      if ( (menuRoot.get() == HPFMENU ||
-            menuRoot.get() == LPFMENU ||
-            menuRoot.get() == PREMENU ) && (j!=k)) {doSetFilter();}
-
-      */
-      
-      vx.vfoAB=vfo.get();
-      Serial.println("Get VfoAB");
-      Serial.println(vx.vfoAB);
+ 
 #endif
 
+//*--- Query VFO status
+
+      vx.vfoAB=vfo.get();
+
+
 #if PICOFM
-      //if (pwr.get()==0){pwrMeter.v=2.0;} else {pwrMeter.v=5.0;}
       if (stp.get()==0) {
          vx.vfostep[vx.vfoAB]=VFO_STEP_5KHz;
       } else {
          vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;
       }   
+#endif 
+
+#if SINPLEA
+     //byte x=stp.get();
+     switch(stp.get()) {
+         case 0:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100Hz;}
+         case 1:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_1KHz;}
+         case 2:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;}
+         case 3:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100KHz;}
+         default:                  {vx.vfostep[vx.vfoAB]=VFO_STEP_1MHz;}
+     }    
+#endif
+
 
       setWord(&MSW,CMD,false);
       setWord(&MSW,GUI,false);
 
       menuRoot.save();
-
-#endif 
       showPanel();
 
 }
@@ -2337,7 +2358,8 @@ void setDDSfreq (unsigned long freq)
  unsigned long div2;
  unsigned int Divider2;
  unsigned int rdiv;
- 
+
+ //*---- Resolve correct counter setup (assumes a 12 KHz FI)
  if (freq > 0) {
     f2=(freq-12)*4;
     if (f2<1000) {
@@ -2346,11 +2368,15 @@ void setDDSfreq (unsigned long freq)
     }  else {
        rdiv = 1;
     }
+
+ //*---- Set DDS divisor
  
  div2 = 900000000/f2;
  f4 = div2/1000;
  f5=div2-(f4*1000);
  clkVFO.setupMultisynth(1, SI5351_PLL_A, f4, f5,1000);
+
+//*--- Set additional divisor
  
  if (rdiv == 16) {
     clkVFO.setupRdiv(1, SI5351_R_DIV_16);
