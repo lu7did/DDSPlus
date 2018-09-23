@@ -51,6 +51,7 @@
 #define PROG_BUILD  "040"
 #define COPYRIGHT "(c) LU7DID 2018"
 
+
 //*----------------------------------------------------------------------------------
 //*  System Status Word
 //*----------------------------------------------------------------------------------
@@ -99,6 +100,7 @@
 //*----- EEPROM signature
 
 #define EEPROM_COOKIE  0x1f
+#define EEPROM_RESET   true
 //*----------------------------------------[DEFINITION]----------------------------------------------
 
 //*--- Control delays
@@ -333,6 +335,9 @@ void setup() {
 //*--- Load the stored frequency
 //*============================================================================================
 
+#if EEPROM_RESET
+    EEPROM.write(30,0);
+#endif    
 
   if (FORCEFREQ == 0) {
 
@@ -365,11 +370,17 @@ void setup() {
             #endif
 
             #if SINPLEA
+                sprintf(hi,"EEPROM initialization Band(%i)",EEPROM.read(31));
+                Serial.println(hi);
+                         
                 if ((EEPROM.read(31) >= 0) && (EEPROM.read(31)<= BANDMAX)) {
                    band.set(EEPROM.read(31));
                 } else {
                    band.set(0);   
                 }
+
+                sprintf(hi,"EEPROM initialization Band Set(%i)",band.get());
+                Serial.println(hi);
 
                 for (int i=0; i <= BANDMAX; i++){
                     bandvfo[i]=EEPROM.read(i+32);
@@ -692,15 +703,12 @@ void showDDS() {
 void showBand() {
 
   lcd.setCursor(6,0);
-  //byte i=band.get();
-  lcd.print("<");
   lcd.print(String(band.getCurrentText()));
-  lcd.print(">");
 
-#if DEBUG
-  sprintf(hi,"showBand %s",band.getCurrentText());
+
+  byte i=band.get();
+  sprintf(hi,"showBand item(%i) {%s}",i,band.getCurrentText());
   Serial.println(hi);
-#endif
  
 };
 #endif
@@ -962,7 +970,7 @@ void processVFO() {
 //int v1;
    
    if (getWord(USW,BCW)==true) {
-       
+
        vx.updateVFO(vx.vfoAB,vx.vfostep[vx.vfoAB]);
        lcd.setCursor(0,1);
        lcd.print((char)126);
@@ -1481,10 +1489,9 @@ void BandUpdate() {
   }
   char* s=(char*)"                  "; 
 
-#if DEBUG  
+ 
   sprintf(hi,"BandUpdate callback mItem= %i",band.mItem);
   Serial.println(hi);
-#endif
   
   switch(band.mItem) {
     case 0:                          {s=(char*)"Off";break;};                            
@@ -1503,17 +1510,16 @@ void BandUpdate() {
 
   vx.setVFOBand(vx.vfoAB,loFreq[band.mItem]*1000,hiFreq[band.mItem]*1000);
   vx.vfo[vx.vfoAB]=loFreq[band.mItem]*1000;
-
-#if DEBUG  
+  //vx.vfo[vx.vfoAB]=bandvfo[band.mItem]*1000;
+  
   sprintf(hi,"BandUpdate callback loFreq= %ld hiFreq= %ld",loFreq[band.mItem]*1000,hiFreq[band.mItem]*1000);
   Serial.println(hi);
   
   sprintf(hi,"BandUpdate callback text %s",s);
   Serial.println(hi);
-#endif
     
   band.l.get(0)->mText=s;
-  showPanel();
+  //showPanel();
   
   return;
   

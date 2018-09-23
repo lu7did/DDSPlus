@@ -1,3 +1,4 @@
+#if SINPLEA
 //*--------------------------------------------------------------------------------------------------
 //* Specific Headers for sinpleA implementation
 //* Solo para uso de radioaficionados, prohibido su utilizacion comercial
@@ -6,19 +7,15 @@
 //*--- Program & version identification
 
 
-#if SINPLEA
-
 #define PROGRAMID "sinpleA"
 #define PROG_VERSION   "1.0"
 
-#endif
 //*-----------------------------------------------------------------------------------------------
 //* Control lines and VFO Definition [Project dependent]
 //*-----------------------------------------------------------------------------------------------
-#if SINPLEA
 
 #define VFO_SHIFT            1000
-#define VFO_START         2000000
+#define VFO_START          100000
 #define VFO_END          60000000
 
 #define VFO_STEP_100Hz        100
@@ -28,10 +25,10 @@
 #define VFO_STEP_100KHz    100000
 #define VFO_STEP_1MHz     1000000
 
-#endif
+//#define VFO_FI_SHIFT           12
+#define VFO_FI_SHIFT            0
+#define VFO_PLL_LOWER        1000
 
-
-#if SINPLEA
 //*=======================================================================================================================================================
 //* SI5351 Library
 //*=======================================================================================================================================================
@@ -41,14 +38,9 @@
 
 Adafruit_SI5351 clkVFO = Adafruit_SI5351();
 
-#endif
 //*------------------------------------------------------------------------------------------------
 //* Set here SINPLEA Menu definitions
 //*------------------------------------------------------------------------------------------------
-
-
-  
-#if SINPLEA
 
 void BandUpdate();
 MenuClass band(BandUpdate);
@@ -76,6 +68,7 @@ void definesinpleAmenu(){
   menuRoot.add((char*)"Step",&stp);
 
   band.add((char*)"Off      ",NULL);
+  band.set(0);
 
   vfo.add((char*)"A",NULL);
   vfo.add((char*)"B",NULL);
@@ -92,12 +85,7 @@ void definesinpleAmenu(){
 
 }
 
-#endif
 
-
-
-
-#if SINPLEA
 //*==============================================================================================================
 //* Set DDS Frequency fur SI5351 
 //* Receive frequency to set expressed in KHz
@@ -123,8 +111,8 @@ void setDDSfreq (unsigned long freq)
 
  //*---- Resolve correct counter setup (assumes a 12 KHz FI)
  if (freq > 0) {
-    f2=(freq-12)*4;
-    if (f2<1000) {
+    f2=(freq-VFO_FI_SHIFT)*4;
+    if (f2<VFO_PLL_LOWER) {
        rdiv = 16;
        f2 = f2 * 16;
     }  else {
@@ -136,7 +124,7 @@ void setDDSfreq (unsigned long freq)
  div2 = 900000000/f2;
  f4 = div2/1000;
  f5=div2-(f4*1000);
- clkVFO.setupMultisynth(1, SI5351_PLL_A, f4, f5,1000);
+ clkVFO.setupMultisynth(1, SI5351_PLL_A, f4, f5,VFO_PLL_LOWER);
 
 //*--- Set additional divisor
  

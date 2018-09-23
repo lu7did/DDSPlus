@@ -173,7 +173,10 @@ void MenuClass::move(boolean cCW,boolean cCCW){
 //*------------------------------------------------------------------------------------------------       
 char* MenuClass::getCurrentText(){
 
-  if (update!=NULL){return getText(0);}
+  if (update!=NULL){
+    update();
+    return getText(0);
+  }
   return getText(mItem);
   
 }
