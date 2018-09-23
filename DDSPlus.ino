@@ -195,6 +195,13 @@
 #endif
 
 
+#if SINPLEA
+#define BANDMAX 3
+
+
+#endif
+
+
 //*----------------------------------------[INCLUDE]-------------------------------------------------
 #include <LiquidCrystal.h>
 #include <stdio.h>
@@ -307,6 +314,7 @@ byte RX[8] = {
 #include <Adafruit_SI5351.h>
 
 Adafruit_SI5351 clkVFO = Adafruit_SI5351();
+
 #endif
 
 //*--------------------------------------------------------------------------------------------
@@ -399,6 +407,7 @@ MenuClass menuRoot(NULL);
 void CTCSSUpdate();
 void SQLUpdate();
 
+
 #define PWRMENU 0
 #define RPTMENU 1
 #define SPDMENU 2
@@ -444,6 +453,9 @@ MenuClass sql(SQLUpdate);
 //*------------------------------------------------------------------------------------------------
 
 #if SINPLEA
+
+void BandUpdate();
+MenuClass band(BandUpdate);
 
 
 #endif
@@ -656,6 +668,8 @@ void setup() {
 //#*--------------------------------------------------------------------
 #if SINPLEA
 
+  menuRoot.add((char*)"Band",&band);
+  band.add((char*)"Off      ",NULL);
 
 #endif
   //*--- Load the stored frequency
@@ -718,6 +732,8 @@ void setup() {
   setWord(&USW,SQ,false);
   setWord(&USW,MIC,false);
   setWord(&USW,KDOWN,false);
+  setWord(&USW,BUSY,false);
+ 
 
   setWord(&JSW,JLEFT,false);
   setWord(&JSW,JRIGHT,false);
@@ -748,12 +764,17 @@ void setup() {
   
   if (clkVFO.begin() != ERROR_NONE)
   {
-     Serial.print("Error");
-     while(1);
+     //Serial.print("Error");
+     //while(1);
+     setWord(&USW,BUSY,false);
+  } else {
+     setWord(&USW,BUSY,true);    
   }
-  Serial.println("OK");
+  //Serial.println("OK");
+  
   clkVFO.enableOutputs(true);
   clkVFO.setupPLL(SI5351_PLL_A, 36, 0, 1000); //900 MHz
+  
   //setSI5351freq (6000);
 
 #endif
@@ -865,19 +886,19 @@ void showFreq() {
   memstatus = 0; // Trigger memory write
 
 };
+
+#if PICOFM
 //*--------------------------------------------------------------------------------------------
 //* showRpt
 //* show repeater operation mode at the display
 //*--------------------------------------------------------------------------------------------
 void showRpt() {
 
-#if PICOFM
   
   lcd.setCursor(0,0);
   if (rpt.get()==0){lcd.print(" ");} else {lcd.print("S");}
   //lcd.print(rpt.getText(rpt.get()));
 
-#endif
 
 };
 //*--------------------------------------------------------------------------------------------
@@ -886,12 +907,10 @@ void showRpt() {
 //*--------------------------------------------------------------------------------------------
 void showCTC() {
 
-#if PICOFM
 
   lcd.setCursor(1,0);
   if (ctc.get()==0){lcd.print(" ");} else {lcd.print("T");}
 
-#endif
 };
 //*--------------------------------------------------------------------------------------------
 //* showPwr
@@ -899,13 +918,11 @@ void showCTC() {
 //*--------------------------------------------------------------------------------------------
 void showPwr() {
 
-#if PICOFM
   
   lcd.setCursor(11,0);
   if (pwr.get()==0) {lcd.print("L");} else {lcd.print("H");}
   return;
 
-#endif
 
 }
 //*--------------------------------------------------------------------------------------------
@@ -914,11 +931,9 @@ void showPwr() {
 //*--------------------------------------------------------------------------------------------
 void showMet() {
 
-#if PICOFM
 
      //showMeter(&sqlMeter,sqlMeter.v);
      return;
-#endif
 
 }
 //*--------------------------------------------------------------------------------------------
@@ -927,45 +942,56 @@ void showMet() {
 //*--------------------------------------------------------------------------------------------
 void showSPD() {
 
-#if PICOFM
 
   lcd.setCursor(5,0);
   if (spd.get()==0) {lcd.print(" ");} else {lcd.print("Z");}
 
-#endif
 
 };
-
 //*--------------------------------------------------------------------------------------------
 //* showSQL
 //* show SQL operation mode at the display
 //*--------------------------------------------------------------------------------------------
 void showSQL() {
 
-#if PICOFM
 
   lcd.setCursor(12,0);
   if (getWord(MSW,CMD)==true) {return;}
   if (digitalRead(A3)==LOW && getWord(MSW,CMD)==false) {lcd.write(byte(5));} else {lcd.write(byte(0));}
 
-#endif
   
 };
+
 //*--------------------------------------------------------------------------------------------
 //* showPTT
 //* show PTT operation mode at the display
 //*--------------------------------------------------------------------------------------------
 void showPTT() {
 
-#if PICOFM
-
   lcd.setCursor(4,0);
   if (getWord(MSW,DOG)==true && wdg.get()!=0){lcd.write(byte(7)); lcd.setCursor(4,0);lcd.blink();return;}
   if (getWord(MSW,PTT)==false) {lcd.write(byte(6)); lcd.setCursor(4,0);lcd.noBlink();} else {lcd.print(" ");lcd.setCursor(4,0);lcd.noBlink();}
-#endif
 
 
 };
+#endif
+
+#if SINPLEA
+//*--------------------------------------------------------------------------------------------
+//* showSQL
+//* show SQL operation mode at the display
+//*--------------------------------------------------------------------------------------------
+void showDDS() {
+
+
+  lcd.setCursor(12,0);
+  if (getWord(USW,BUSY)==true) {lcd.print("*");} else {lcd.print("-");}
+  
+
+  
+};
+#endif
+
 /*
 //*--------------------------------------------------------------------------------------------
 //* showPre
@@ -1053,21 +1079,23 @@ void showPanel() {
       lcd.setCursor(0,0);
       
       showFreq();
+      showVFO();
+
+#if PICOFM      
       showPwr();
       showRpt();
       showCTC();
       showDog();
-      /*
-      showPre();
-      showHPF();
-      showLPF();
-      */
       showSQL();
-      showPTT();
-      showVFO();
+      showPTT();     
       showSPD();
       showDRF();
       //showMet();
+#endif
+
+#if SINPLEA
+      showDDS();
+#endif      
       
       return;
    }
@@ -1102,11 +1130,16 @@ void showPanel() {
    }
 
 }
-
+//*----
+//* Show Mark
+//*----
 void showMark(){
       lcd.setCursor(0,1);
       lcd.print(">"); 
 }
+//*----
+//* UnshowMark
+//*----
 void unshowMark(){
        lcd.setCursor(0,1);
       lcd.print(" "); 
@@ -1348,10 +1381,11 @@ void CMD_FSM() {
               //showMeter(&sqlMeter,sqlMeter.v);
               if (rpt.get()!=0) {vx.swapVFO();showVFO();} //If split enabled
               //showFreq();
-#endif              
-              showFreq();
               setWord(&MSW,DOG,false);
               showPTT();
+#endif              
+              showFreq();
+ 
           
           }   
        }
@@ -1738,6 +1772,39 @@ void doSetPD() {
      digitalWrite(PDPin,HIGH);
   }
    
+}
+#endif
+
+
+#if SINPLEA
+
+//*--------------------------------------------------------------------------------------------
+//* CTCSS Update
+//* send commands related to scan frequency information
+//*--------------------------------------------------------------------------------------------
+void BandUpdate() {
+
+  if (band.mItem < BANDMAX && band.CW == true) {
+      band.mItem++;
+  }
+  if (band.mItem > 0 && band.CCW == true) {
+      band.mItem--;
+  }
+  char* s=(char*)"                  "; 
+  switch(band.mItem) {
+    case 0:                          {s=(char*)"Off";break;};                            
+    case 1:                          {s=(char*)"160m";break;};
+    case 2:                          {s=(char*)"80m";break;}; 
+    default:                         {s=(char*)"40m";break;};
+
+   
+  }
+  
+  band.l.get(0)->mText=s;
+  showPanel();
+  
+  return;
+  
 }
 #endif
 
