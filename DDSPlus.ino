@@ -100,7 +100,7 @@
 //*----- EEPROM signature
 
 #define EEPROM_COOKIE  0x1f
-#define EEPROM_RESET   true
+#define EEPROM_RESET   false
 //*----------------------------------------[DEFINITION]----------------------------------------------
 
 //*--- Control delays
@@ -450,8 +450,7 @@ void setup() {
 #if SINPLEA
 //===================================================================================
 //* SI5351 DDS  module initialization and setup
-//===================================================================================
-  
+//=================================================================================== 
   if (clkVFO.begin() != ERROR_NONE)
   {
      setWord(&USW,CONX,false);
@@ -460,11 +459,9 @@ void setup() {
   }
   
   clkVFO.enableOutputs(true);
-  clkVFO.setupPLL(SI5351_PLL_A, 36, 0, 1000); //900 MHz
-  
-#endif
+  clkVFO.setupPLL(SI5351_PLL_A, 36, 0, 1000); //900 MHz 
 //===================================================================================
-
+#endif
 
 //*=========================================================================================================
 #if DEBUG
@@ -486,7 +483,7 @@ void setup() {
 
 }
 //*****************************************************************************************************
-//*                               MenÃº Finite Status Machine (FSM)
+//*                               Menu Finite Status Machine (FSM)
 //*
 //*****************************************************************************************************
 //*--------------------------------------------------------------------------------------------
@@ -496,6 +493,7 @@ void setup() {
 String menuText(byte mItem) {
 
 //*---- Here CMD==true and GUI==true so it's a second level menu
+
    byte i=menuRoot.get();
    MenuClass* z=menuRoot.getChild(i);
    return z->getText(i);
@@ -522,8 +520,6 @@ void showFreq() {
   Serial.println(hi);
 #endif
 
-
-
 //*---- Prepare to display
   
   if (v.millions > 9) {
@@ -532,7 +528,6 @@ void showFreq() {
   else {
     lcd.setCursor(3, 1);
   }
-
   
   lcd.print(v.millions);
   lcd.print(".");
@@ -547,10 +542,12 @@ void showFreq() {
   //*---- Set DDS with new frequency
   setDDSfreq(fDDS);
 
-  lcd.print(" ");
-  lcd.print(v.hundreds);
-  lcd.print(v.tens);
-
+  if (stp.get()==0) {
+     lcd.print(" ");
+     lcd.print(v.hundreds);
+     lcd.print(v.tens);
+  }
+  
 #endif
   
   timepassed = millis();
@@ -705,10 +702,11 @@ void showBand() {
   lcd.setCursor(6,0);
   lcd.print(String(band.getCurrentText()));
 
-
+#if DEBUG
   byte i=band.get();
   sprintf(hi,"showBand item(%i) {%s}",i,band.getCurrentText());
   Serial.println(hi);
+#endif
  
 };
 #endif
@@ -840,58 +838,17 @@ void menuFSM() {
      return;
    
 }
+//*--------------------------------------------------------------------------------------------
+//* showSave
+//* save legend
+//*--------------------------------------------------------------------------------------------
 void showSave(){
       lcd.clear();
       lcd.setCursor(0,0);
       lcd.print("Saving....");
   
 }
-#if PICOFM
-//*--------------------------------------------------------------------------------------------
-//* savepicoFM
-//* save specifics of picoFM
-//*--------------------------------------------------------------------------------------------
-void savepicoFM() {
 
-      //*--- Detect changes that needs to be reflected thru commands to the ChipSet
-      if ( (menuRoot.get() == PWRMENU) && (j!=k)) {doSetPower();}
-      if ( (menuRoot.get() == SPDMENU) && (j!=k)) {doSetPD();}
-      
-      
-      if ( (menuRoot.get() == STPMENU ||
-            menuRoot.get() == RPTMENU ||
-            menuRoot.get() == SQLMENU ||
-            menuRoot.get() == CTCMENU ||
-            menuRoot.get() == TONMENU ||
-            menuRoot.get() == VFOMENU ||
-            menuRoot.get() == BDWMENU ) && (j!=k)) {doSetGroup();}
-
-      if (stp.get()==0) {
-         vx.vfostep[vx.vfoAB]=VFO_STEP_5KHz;
-      } else {
-         vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;
-      }   
-
-}
-#endif
-
-#if SINPLEA
-//*--------------------------------------------------------------------------------------------
-//* savesinpleA
-//* save specifics of sinpleA
-//*--------------------------------------------------------------------------------------------
-void savesinpleA() {
-
-     switch(stp.get()) {
-         case 0:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100Hz;break;}
-         case 1:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_1KHz;break;}
-         case 2:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;break;}
-         case 3:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100KHz;break;}
-         default:                  {vx.vfostep[vx.vfoAB]=VFO_STEP_1MHz;break;}
-     }    
-  
-}
-#endif
 
 //*--------------------------------------------------------------------------------------------
 //* doSave
@@ -919,10 +876,8 @@ void doSave() {
       savepicoFM(); 
 #endif
 
-
 #if SINPLEA
-     savesinpleA();
-     
+     savesinpleA();     
 #endif
 //***************************************************
 

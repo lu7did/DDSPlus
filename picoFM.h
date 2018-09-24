@@ -263,4 +263,34 @@ void picoFMpinsetup() {
   lcd.createChar(6,TX);
   lcd.createChar(7,WATCHDOG);
 }  
+
 #endif
+#if PICOFM
+//*--------------------------------------------------------------------------------------------
+//* savepicoFM
+//* save specifics of picoFM
+//*--------------------------------------------------------------------------------------------
+void savepicoFM() {
+
+      //*--- Detect changes that needs to be reflected thru commands to the ChipSet
+      if ( (menuRoot.get() == PWRMENU) && (j!=k)) {doSetPower();}
+      if ( (menuRoot.get() == SPDMENU) && (j!=k)) {doSetPD();}
+      
+      
+      if ( (menuRoot.get() == STPMENU ||
+            menuRoot.get() == RPTMENU ||
+            menuRoot.get() == SQLMENU ||
+            menuRoot.get() == CTCMENU ||
+            menuRoot.get() == TONMENU ||
+            menuRoot.get() == VFOMENU ||
+            menuRoot.get() == BDWMENU ) && (j!=k)) {doSetGroup();}
+
+      if (stp.get()==0) {
+         vx.vfostep[vx.vfoAB]=VFO_STEP_5KHz;
+      } else {
+         vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;
+      }   
+
+}
+#endif
+

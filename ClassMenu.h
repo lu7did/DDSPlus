@@ -83,7 +83,10 @@ MenuClass::MenuClass(CALLBACK u) {
 //*-------------------------------------------------------------------------------------------------
 
 void MenuClass::set(byte i) {
-  mItem=i;
+  mItem=i; 
+  if (update!=NULL){
+    update();
+  }
   return;
 }
 //*-------------------------------------------------------------------------------------------------
@@ -174,7 +177,7 @@ void MenuClass::move(boolean cCW,boolean cCCW){
 char* MenuClass::getCurrentText(){
 
   if (update!=NULL){
-    update();
+    //update();
     return getText(0);
   }
   return getText(mItem);

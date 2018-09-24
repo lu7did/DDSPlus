@@ -137,3 +137,21 @@ void setDDSfreq (unsigned long freq)
 }
 }
 #endif
+#if SINPLEA
+//*--------------------------------------------------------------------------------------------
+//* savesinpleA
+//* save specifics of sinpleA
+//*--------------------------------------------------------------------------------------------
+void savesinpleA() {
+
+     switch(stp.get()) {
+         case 0:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100Hz;break;}
+         case 1:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_1KHz;break;}
+         case 2:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_10KHz;break;}
+         case 3:                   {vx.vfostep[vx.vfoAB]=VFO_STEP_100KHz;break;}
+         default:                  {vx.vfostep[vx.vfoAB]=VFO_STEP_1MHz;break;}
+     }    
+  
+}
+#endif
+
