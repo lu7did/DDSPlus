@@ -135,6 +135,7 @@
 //* Define callback functions
 //*-------------------------------------------------------------------------------------------------
 void  Encoder_san();
+
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //*------ define root for all the menu system
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -143,7 +144,7 @@ MenuClass menuRoot(NULL);
 //*-------------------------------------------------------------------------------------------------
 //* Define class to manage VFO
 //*-------------------------------------------------------------------------------------------------
-void showFreq();   //Prototype fur display used on callback
+void showFreq();                       //Prototype fur display used on callback
 VFOSystem vx(showFreq,NULL);
 
 //*--------------------------------------------------------------------------------------------
@@ -175,7 +176,6 @@ VFOSystem vx(showFreq,NULL);
         
 //*---- Debug buffer
 char hi[80];
-
 
 //*--------------------------------------------------------------------------------
 //*--- Pseudo Real Time Clock  
@@ -231,7 +231,6 @@ int memstatus   = 1;           // value to notify if memory is current or old. 0
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //*  Model specific includes
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 #include "picoFM.h"
 #include "sinpleA.h"
 
@@ -262,13 +261,11 @@ void setup() {
 //*========================================
   attachInterrupt(1, Encoder_san, FALLING);        //interrupts: numbers 0 (on digital pin 2) and 1 (on digital pin 3).
 
-//*-------------------------------------------------------------------------------
-//* I/O Definitions for the DRA818V
-//*-------------------------------------------------------------------------------
-#if PICOFM
-  picoFMPinSetup();
-#endif
-
+//*****************************
+//* Module specific           *
+//*****************************
+pinSetup();
+  
 //*=====================================================================================
   
   lcd.setCursor(0, 0);        // Place cursor at [0,0]
@@ -284,11 +281,11 @@ void setup() {
  
   vx.setVFOFreq(VFOA,VFO_START);
   vx.setVFOStep(VFOA,VFO_STEP_1KHz);
-  vx.setVFOBand(VFOA,VFO_START,VFO_END);
+  vx.setVFOLimit(VFOA,VFO_START,VFO_END);
 
   vx.setVFOFreq(VFOB,VFO_START);
   vx.setVFOStep(VFOB,VFO_STEP_1KHz);
-  vx.setVFOBand(VFOB,VFO_START,VFO_END);
+  vx.setVFOLimit(VFOB,VFO_START,VFO_END);
 
   vx.setVFO(VFOA);
  
@@ -316,87 +313,86 @@ void setup() {
 
   Serial.begin(9600);
   serialQueue[0]=0x00;
+  
+//*****************************
+//* Module specific           *
+//*****************************
+  defineMenu();   
 
 //*============================================================================================
-//* Define menu system PICOFM
-//*============================================================================================
-#if PICOFM
-  definepicoFMmenu();
-#endif
-
-//*============================================================================================
-//* Define menu system SINPLEA
-//*============================================================================================
-#if SINPLEA
-  definesinpleAmenu();
-#endif
-
-//*============================================================================================
-//*--- Load the stored frequency
+//*--- Load the stored configuration in EEPROM (if enabled)
 //*============================================================================================
 
 #if EEPROM_RESET
-    EEPROM.write(30,0);
+    EEPROM.write(34,0);
 #endif    
 
   if (FORCEFREQ == 0) {
+      
+     if (EEPROM.read(34)==EEPROM_COOKIE) {
 
-     if (EEPROM.read(30)==EEPROM_COOKIE) {
 
             //*---- Recover frequency for VFOA
             char hi[12];    
             sprintf(hi,"%3d%1d%1d%1d%1d%1d%1d",EEPROM.read(1),EEPROM.read(2),EEPROM.read(3),EEPROM.read(4),EEPROM.read(5),EEPROM.read(5),EEPROM.read(6),EEPROM.read(7));
             vx.vfo[VFOA]=String(hi).toInt();
 
+            
             //*---- Recover frequency for VFOB
             sprintf(hi,"%3d%1d%1d%1d%1d%1d%1d",EEPROM.read(8),EEPROM.read(9),EEPROM.read(10),EEPROM.read(11),EEPROM.read(12),EEPROM.read(13),EEPROM.read(14));
             vx.vfo[VFOB]=String(hi).toInt();            
-            
+
+#if DEBUG
+//*----------------------------------------------------------------------
+            sprintf(hi,"EEPROM Read VFOA=%ld",vx.vfo[VFOA]);
+            Serial.println(hi);
+
+            sprintf(hi,"EEPROM Read VFOB=%ld",vx.vfo[VFOB]);
+            Serial.println(hi);
+//*----------------------------------------------------------------------            
+#endif            
+
             vx.vfoAB = EEPROM.read(15);        
             vfo.set(EEPROM.read(26));
-            stp.set(EEPROM.read(18));
+            shf.set(EEPROM.read(18));
 
-            #if PICOFM
-                sql.set(EEPROM.read(0));
-                pwr.set(EEPROM.read(16));
-                wdg.set(EEPROM.read(17));
-                rpt.set(EEPROM.read(19));
-                spd.set(EEPROM.read(20));
-                bdw.set(EEPROM.read(21));
-                //hpf.set(EEPROM.read(22));
-                //lpf.set(EEPROM.read(23));
-                //pre.set(EEPROM.read(24));
-                ctc.set(EEPROM.read(25));
-            #endif
+            vx.vfoband[VFOA]=EEPROM.read(30);
+            vx.vfoband[VFOB]=EEPROM.read(31);
 
-            #if SINPLEA
-                sprintf(hi,"EEPROM initialization Band(%i)",EEPROM.read(31));
-                Serial.println(hi);
-                         
-                if ((EEPROM.read(31) >= 0) && (EEPROM.read(31)<= BANDMAX)) {
-                   band.set(EEPROM.read(31));
-                } else {
-                   band.set(0);   
-                }
+            vx.vfostep[VFOA]=EEPROM.read(32);
+            vx.vfostep[VFOB]=EEPROM.read(33);
+            
+            
+            byte b[4];  
+            for (int i=0; i <= BANDMAX; i++){
 
-                sprintf(hi,"EEPROM initialization Band Set(%i)",band.get());
-                Serial.println(hi);
+                b[0]=EEPROM.read( ((i*8)+0)+40);
+                b[1]=EEPROM.read( ((i*8)+1)+40);
+                b[2]=EEPROM.read( ((i*8)+2)+40);
+                b[3]=EEPROM.read( ((i*8)+3)+40);
+                long int v = (long int)((b[3] << 24) | (b[2] << 16) | (b[1] << 8) | (b[0]) );
+                vx.bandvfo[VFOA][i]=v;
 
-                for (int i=0; i <= BANDMAX; i++){
-                    bandvfo[i]=EEPROM.read(i+32);
-                }
-                
-            #endif
+                b[0]=EEPROM.read( ((i*8)+4)+40);
+                b[1]=EEPROM.read( ((i*8)+5)+40);
+                b[2]=EEPROM.read( ((i*8)+6)+40);
+                b[3]=EEPROM.read( ((i*8)+7)+40);
+                v = (long int)((b[3] << 24) | (b[2] << 16) | (b[1] << 8) | b[0]);
+                vx.bandvfo[VFOB][i]=v;
+ 
+            }
+            readEEPROM();
 
             MSW = EEPROM.read(27);
             USW = EEPROM.read(28);
             TSW = EEPROM.read(29);
      }
   } 
-    
-  if (vx.vfo[VFOA]<loFreq[band.mItem]*1000 || vx.vfo[VFOA]>hiFreq[band.mItem]*1000) {vx.vfo[VFOA]=loFreq[band.mItem]*1000;}
-  if (vx.vfo[VFOB]<loFreq[band.mItem]*1000 || vx.vfo[VFOB]>hiFreq[band.mItem]*1000) {vx.vfo[VFOB]=loFreq[band.mItem]*1000;}
 
+//*********************************
+//* Module specific function      *
+//*********************************
+  checkBandLimit();
 
 //**********************************************************************************************
 //*--- Initial value for system operating modes
@@ -418,50 +414,16 @@ void setup() {
   setWord(&USW,MIC,false);
   setWord(&USW,KDOWN,false);
 
-#if PICOFM
-  setWord(&USW,BUSY,false);
-#endif
-
-#if PICOFM
-  setWord(&USW,CONX,false);
-#endif
-
-
+  
   setWord(&JSW,JLEFT,false);
   setWord(&JSW,JRIGHT,false);
   setWord(&JSW,JUP,false);
   setWord(&JSW,JDOWN,false);
 
-
-#if PICOFM
-//===================================================================================
-//* DRA018V module initialization and setup
-//===================================================================================
-
-  doHandShake();
-  doSetVolume();
-  doSetFilter();
-  doSetGroup();
-
-#endif
-//===================================================================================
-
-
-#if SINPLEA
-//===================================================================================
-//* SI5351 DDS  module initialization and setup
-//=================================================================================== 
-  if (clkVFO.begin() != ERROR_NONE)
-  {
-     setWord(&USW,CONX,false);
-  } else {
-     setWord(&USW,CONX,true);    
-  }
-  
-  clkVFO.enableOutputs(true);
-  clkVFO.setupPLL(SI5351_PLL_A, 36, 0, 1000); //900 MHz 
-//===================================================================================
-#endif
+//**********************************
+//* Device specific initialization *
+//**********************************
+  setSysOM();
 
 //*=========================================================================================================
 #if DEBUG
@@ -508,15 +470,11 @@ void showFreq() {
   FSTR v;  
 
     
-  long int f=vx.vfo[vx.vfoAB];   
-  long int fDDS=f/1000;
-    
+  long int f=vx.vfo[vx.vfoAB]; 
   vx.computeVFO(f,&v);
 
-#if DEBUG  
-  sprintf(hi,"Frequency %ld",f);
-  Serial.println(hi);
-  sprintf(hi,"FrequencyDDS %ld",fDDS);
+#if DEBUG
+  sprintf(hi,"showFreq f=%ld",f);
   Serial.println(hi);
 #endif
 
@@ -535,21 +493,10 @@ void showFreq() {
   lcd.print(v.tenthousands);
   lcd.print(v.thousands);
 
-#if SINPLEA
-//*******************************
-//* Setup DDS Frequency         *
-//*******************************
-  //*---- Set DDS with new frequency
-  setDDSfreq(fDDS);
-
-  if (stp.get()==0) {
-     lcd.print(" ");
-     lcd.print(v.hundreds);
-     lcd.print(v.tens);
-  }
-  
-#endif
-  
+//**************************************
+//* Setup device specific frequency    *
+//**************************************
+  setFrequencyHook(f,&v); 
   timepassed = millis();
   memstatus = 0; // Trigger memory write
 
@@ -570,7 +517,6 @@ void showRpt() {
   
   lcd.setCursor(0,0);
   if (rpt.get()==0){lcd.print(" ");} else {lcd.print("S");}
-  //lcd.print(rpt.getText(rpt.get()));
 
 
 };
@@ -701,12 +647,6 @@ void showBand() {
 
   lcd.setCursor(6,0);
   lcd.print(String(band.getCurrentText()));
-
-#if DEBUG
-  byte i=band.get();
-  sprintf(hi,"showBand item(%i) {%s}",i,band.getCurrentText());
-  Serial.println(hi);
-#endif
  
 };
 #endif
@@ -720,17 +660,8 @@ void showBand() {
 //*--------------------------------------------------------------------------------------------
 void showVFO() {
 
-#if PICOFM
-  lcd.setCursor(2,0);
-  if (vx.vfoAB==VFOA){lcd.print("A");} else {lcd.print("B");}
-#endif
-
-#if SINPLEA
-  lcd.setCursor(0,0);
-  lcd.print("Vfo");
-  if (vx.vfoAB==VFOA){lcd.print("A");} else {lcd.print("B");}
-  //lcd.print("");
-#endif
+  showVFOHook();
+  
 
 };
 
@@ -750,23 +681,9 @@ void showPanel() {
       showFreq();
       showVFO();
 
-#if PICOFM      
-      showPwr();
-      showRpt();
-      showCTC();
-      showDog();
-      showSQL();
-      showPTT();     
-      showSPD();
-      showDRF();
-      //showMet();
-#endif
-
-#if SINPLEA
-      showBand();
-      showDDS();
-#endif      
-      
+//*--- Device specific GUI builter
+      showGUI();
+//*----           
       return;
    }
 
@@ -781,9 +698,9 @@ void showPanel() {
       
       lcd.clear();
       lcd.setCursor(0,0);
-      lcd.print("<"+String(i)+"> "+String(menuRoot.getText(i)));
+      lcd.print("<"+String(i)+"> "+String(menuRoot.getCurrentText()));
       lcd.setCursor(1,1);
-      lcd.print("  "+String(z->getText(z->get()) ));
+      lcd.print("  "+String(z->getCurrentText() ));
 
       return;
       
@@ -872,13 +789,7 @@ void doSave() {
 //**************************************************
 //* Device specific parameter saving               *
 //**************************************************
-#if PICOFM
-      savepicoFM(); 
-#endif
-
-#if SINPLEA
-     savesinpleA();     
-#endif
+      saveMenu();
 //***************************************************
 
       setWord(&MSW,CMD,false);
@@ -923,6 +834,11 @@ void restoreFSM() {
 void processVFO() {
 
 //int v1;
+
+#if DEBUG
+   sprintf(hi,"processVFO Entry VFO %i %i %ld",vx.vfoAB,vx.vfostep[vx.vfoAB],vx.vfo[vx.vfoAB]);
+   Serial.println(hi);
+#endif
    
    if (getWord(USW,BCW)==true) {
 
@@ -939,6 +855,11 @@ void processVFO() {
        lcd.print((char)127);
    
    }
+
+#if DEBUG   
+   sprintf(hi,"processVFO Exit VFO %i %i %i",vx.vfoAB,vx.vfostep[vx.vfoAB],vx.vfo[vx.vfoAB]);
+   Serial.println(hi);
+#endif
    
    T4=LCD_DELAY;
  
@@ -1131,12 +1052,11 @@ void CMD_FSM() {
       }
 
       if (vx.isVFOChanged(vx.vfoAB)==true) {
- 
-#if PICOFM
-        
+
+ //************************************
+ //* Device specific reset            *
+ //************************************
          doSetGroup();
-#endif
-         
          vx.resetVFO(vx.vfoAB);
        }
        
@@ -1230,256 +1150,7 @@ void CMD_FSM() {
 
 }
 
-#if PICOFM
-//*****************************************************************************************************
-//*                               Manages DRA818F Configuration
-//*
-//*
-//*
-//*
-//*
-//*****************************************************************************************************
 
-//*--------------------------------------------------------------------------------------------
-//* doSetGroup
-//* send commands related to setup group information
-//*--------------------------------------------------------------------------------------------
-void doSetGroup() {
-  FSTR     v;
-  long int fr;
-  long int ft;
-
-  if (rpt.get()==0) {  //*--- Is Simplex
-      fr=vx.vfo[vx.vfoAB];
-      ft=fr;
-  } else {             //*--- Is Split
-      fr=vx.vfo[vx.vfoAB];
-      if (vx.vfoAB==VFOA) {ft=vx.vfo[VFOB];} else {ft=vx.vfo[VFOA];}
-  }
-  
-  
-  vx.computeVFO(ft,&v);   
-  char hi[40];
-  sprintf(hi,"AT+DMOSETGROUP=%1d,%3d.%1d%1d%1d%1d,",bdw.get(),v.millions,v.hundredthousands,v.tenthousands,v.thousands,v.hundreds);
-  Serial.print(hi);
-  
-  //f=vx.vfo[vx.vfoAB];
-  vx.computeVFO(ft,&v); 
-  sprintf(hi,"%3d.%1d%1d%1d%1d,0,%1d,%1d\r\n",v.millions,v.hundredthousands,v.tenthousands,v.thousands,v.hundreds,sql.get(),ctc.get());  
-  Serial.print(hi);
-  
-  delay(CMD_DELAY);
-  
-}
-//*--------------------------------------------------------------------------------------------
-//* doSetFilter
-//* send commands related to setup filter information
-//*--------------------------------------------------------------------------------------------
-void doSetFilter() {
-   
-  char hi[30];
-  byte pre=PRE;
-  byte hpf=HPF;
-  byte lpf=LPF;
-  sprintf(hi,"AT+SETFILTER=%1d,%1d,%1d\r\n",pre,hpf,lpf);
-  Serial.print(hi);
-  delay(CMD_DELAY);
-  
-}
-//*--------------------------------------------------------------------------------------------
-//* doSetVolume
-//* send commands related to setup volume information
-//*--------------------------------------------------------------------------------------------
-void doSetVolume() {
-  
-  char hi[20];
-  byte v=VOLUME;
-  sprintf(hi,"AT+DMOSETVOLUME=%1d\r\n",v);
-  Serial.print(hi);
-  delay(CMD_DELAY);
-}
-//*--------------------------------------------------------------------------------------------
-//* doScan
-//* send commands related to scan frequency information
-//*--------------------------------------------------------------------------------------------
-void doScan() {
-  
-}
-
-//*--------------------------------------------------------------------------------------------
-//* SQL Update
-//* update squelch level text
-//*--------------------------------------------------------------------------------------------
-void SQLUpdate(){
-  
-  if (sql.mItem < 8 && sql.CW==true) {
-     sql.mItem++;
-  }
-  if (sql.mItem>0 && sql.CCW==true) {
-     sql.mItem--;
-  }
-  
-  char s[]="SQL[0] ";
-
-  sprintf(s,"SQL[%1d]",sql.mItem);
-  strcpy(sql.l.get(0)->mText,s);
-  showPanel();
-  
-}
-//*--------------------------------------------------------------------------------------------
-//* CTCSS Update
-//* send commands related to scan frequency information
-//*--------------------------------------------------------------------------------------------
-void CTCSSUpdate() {
-
-  if (ctc.mItem < CTCSSCODEMAX && ctc.CW == true) {
-      ctc.mItem++;
-  }
-  if (ctc.mItem > 0 && ctc.CCW == true) {
-      ctc.mItem--;
-  }
-  char* s=(char*)"                  "; 
-  switch(ctc.mItem) {
-    case 0:                          {s=(char*)"Off";break;};                            
-    case 1:                          {s=(char*)"67.0";break;};
-    case 2:                          {s=(char*)"71.9";break;};
-    case 3:                          {s=(char*)"74.4";break;};
-    case 4:                          {s=(char*)"77.0";break;};
-    case 5:                          {s=(char*)"79.7";break;};
-    case 6:                          {s=(char*)"82.5";break;};
-    case 7:                          {s=(char*)"85.4";break;};
-    case 8:                          {s=(char*)"88.5";break;};
-    case 9:                          {s=(char*)"91.5";break;};
-    case 10:                         {s=(char*)"94.8";break;};
-    case 11:                         {s=(char*)"97.4";break;};
-    case 12:                         {s=(char*)"100.0";break;};
-    case 13:                         {s=(char*)"103.5";break;};
-    case 14:                         {s=(char*)"107.2";break;};
-    case 15:                         {s=(char*)"110.9";break;};
-    case 16:                         {s=(char*)"114.8";break;};   
-    case 17:                         {s=(char*)"118.8";break;};
-    case 18:                         {s=(char*)"123.0";break;};
-    case 19:                         {s=(char*)"127.3";break;};
-    default:                         {s=(char*)"131.8";break;};
-    case 21:                         {s=(char*)"136.5";break;};
-    case 22:                         {s=(char*)"141.3";break;};
-    case 23:                         {s=(char*)"146.2";break;};
-    case 24:                         {s=(char*)"151.4";break;};
-    case 25:                         {s=(char*)"156.7";break;};
-    case 26:                         {s=(char*)"162.2";break;};
-    case 27:                         {s=(char*)"167.9";break;};
-    case 28:                         {s=(char*)"173.8";break;};
-    case 29:                         {s=(char*)"179.9";break;};
-    case 30:                         {s=(char*)"186.2";break;};
-    case 31:                         {s=(char*)"192.8";break;};
-    case 32:                         {s=(char*)"203.5";break;};
-    case 33:                         {s=(char*)"210.7";break;};
-    case 34:                         {s=(char*)"218.1";break;};
-    case 35:                         {s=(char*)"225.7";break;};
-    case 36:                         {s=(char*)"233.6";break;};
-    case 37:                         {s=(char*)"241.8";break;};                             
-    case 38:                         {s=(char*)"250.3";break;};
-   
-  }
-  
-  ctc.l.get(0)->mText=s;
-  showPanel();
-  
-  return;
-  
-}
-
-//*--------------------------------------------------------------------------------------------
-//* doHandShake
-//* send commands related to handshake information
-//*--------------------------------------------------------------------------------------------
-void doHandShake() {
-  
-  char hi[20];
-  sprintf(hi,"AT+DMOCONNECT\r\n");
-  Serial.println(hi);
-  delay(CMD_DELAY);
-  
-}
-//*--------------------------------------------------------------------------------------------
-//* doSetPower
-//* send commands related to set output power
-//*--------------------------------------------------------------------------------------------
-void doSetPower() {
-
-  if (pwr.get()==0) {
-     digitalWrite(HLPin,LOW);
-  } else {
-     digitalWrite(HLPin,HIGH);
-  }
-  
-}
-//*--------------------------------------------------------------------------------------------
-//* doSetPD
-//* send commands related to set PD mode
-//*--------------------------------------------------------------------------------------------
-void doSetPD() {
-  if (spd.get()==0) {
-     digitalWrite(PDPin,LOW);
-  } else {
-     digitalWrite(PDPin,HIGH);
-  }
-   
-}
-#endif
-
-
-#if SINPLEA
-//*--------------------------------------------------------------------------------------------
-//* Band Update   (CALLBACK from Menu System)
-//* Set band label and limits
-//*--------------------------------------------------------------------------------------------
-void BandUpdate() {
-
-  if (band.mItem < BANDMAX && band.CW == true) {
-      band.mItem++;
-  }
-  if (band.mItem > 0 && band.CCW == true) {
-      band.mItem--;
-  }
-  char* s=(char*)"                  "; 
-
- 
-  sprintf(hi,"BandUpdate callback mItem= %i",band.mItem);
-  Serial.println(hi);
-  
-  switch(band.mItem) {
-    case 0:                          {s=(char*)"Off";break;};                            
-    case 1:                          {s=(char*)"160m";break;};
-    case 2:                          {s=(char*)"80m";break;}; 
-    case 3:                          {s=(char*)"60m";break;}; 
-    case 4:                          {s=(char*)"40m";break;}; 
-    case 5:                          {s=(char*)"30m";break;}; 
-    case 6:                          {s=(char*)"20m";break;}; 
-    case 7:                          {s=(char*)"17m";break;}; 
-    case 8:                          {s=(char*)"15m";break;}; 
-    case 9:                          {s=(char*)"12m";break;}; 
-    case 10:                         {s=(char*)"10m";break;}; 
-    default:                         {s=(char*)" 6m";break;};   
-  }
-
-  vx.setVFOBand(vx.vfoAB,loFreq[band.mItem]*1000,hiFreq[band.mItem]*1000);
-  vx.vfo[vx.vfoAB]=loFreq[band.mItem]*1000;
-  //vx.vfo[vx.vfoAB]=bandvfo[band.mItem]*1000;
-  
-  sprintf(hi,"BandUpdate callback loFreq= %ld hiFreq= %ld",loFreq[band.mItem]*1000,hiFreq[band.mItem]*1000);
-  Serial.println(hi);
-  
-  sprintf(hi,"BandUpdate callback text %s",s);
-  Serial.println(hi);
-    
-  band.l.get(0)->mText=s;
-  //showPanel();
-  
-  return;
-  
-}
-#endif
 //*============================================================================================
 //*--------------------------------------------------------------------------------------------
 //* swapVFO
@@ -1507,133 +1178,8 @@ void checkPriority() {
 //*------------------------------------------------------------------------------------------------------
 void serialEvent() {
 
-#if PICOFM
-
-  while (Serial.available() && pQueue<=(QUEUEMAX)-1) {
-      
-      char inChar = (char)Serial.read();                //get new character from Serial port
-      inChar=uppercase(inChar);
-
-      //*---- Skip processing CR,LF and blanks
-      switch (inChar) {
-        case '\n' : {
-             inState=0;
-             pQueue=0;
-             inCmd=0;
-             break;
-        }
-        case '\r' : {
-             pQueue=0;
-             inState=0;
-             inCmd=0;
-             break;
-        }
-        case ' ' : {
-             pQueue=0;
-             inState=0;
-             inCmd=0;
-             break;
-          
-        }
-        //*--- Semicolon means the transition between a command and the value
-        case ':' : {
-             if (inState==1) {      //*--- if previously received a +DMO the decode a command
-              
-             
-                if (strcmp(serialQueue,"CONNECT")==0) {
-                   inCmd=1;
-                }
-                if (strcmp(serialQueue,"SETGROUP")==0) {
-                   inCmd=2;
-                }
-                if (strcmp(serialQueue,"SETVOLUME")==0) {
-                   inCmd=3;
-                }
-                if (strcmp(serialQueue,"SETFILTER")==0) {
-                   inCmd=4;
-                }
-                
-                inState=2;
-             }
-             //*--- Cleanse the buffer           
-             pQueue=0;
-             serialQueue[pQueue]=0x00;
-             break;
-        }
-        case '=': {
-                if (strcmp(serialQueue,"S")==0) {
-                   inCmd=5;
-                }
-                
-                inState=2;
-                break;
-        //*--- Process a new character from the serial port
-        } 
-        default: {
-           
-           inChar=uppercase(inChar);
-           serialQueue[pQueue]=inChar;
-           serialQueue[pQueue+1]=0x00;
-
-           //*---- if previously received a "." mark then get the variable
-           
-           if (inState==2) {
-              
-              //*--- Process according with the previous command
-              
-              switch(inCmd) {
-                case 1: {  
-                     //Process CONNECT
-                     if (serialQueue[0]=='0') {
-                        setWord(&MSW,DRF,true);
-                     } else {
-                        setWord(&MSW,DRF,false);
-                     }
-                     showPanel();
-                     break;
-                }
-                case 2: {
-                     //Proceso SETGROUP
-                     break;
-                }
-                case 3: {
-                     //Proceso SETVOLUME
-                     break;
-                }
-                case 4: {
-                     //Proceso SETFILTER
-                     break;
-                }
-                case 5: {
-                     if (serialQueue[0]=='0') {
-                        setWord(&USW,BUSY,false);
-                     } else {
-                        setWord(&USW,BUSY,true);
-                     }
-                     //Proceso FREQUEENCY
-                     break;
-                }
-              }
-              pQueue=0;
-              inState=0;      
-           } else {
-             pQueue++;
-           }  
-           break;     
-        }
-      }
-      
-      //*--- detect the hear of the response        
-      
-      if (strcmp(serialQueue,"+DMO")==0) {
-         pQueue=0;
-         serialQueue[pQueue]=0x00;
-         inState=1;
-      }
-}
-
-#endif
-
+  handleSerialCommand();
+  
 }
 //*****************************************************************************************************
 //*                               Manages Meter
@@ -1750,17 +1296,11 @@ ISR(TIMER1_OVF_vect) // interrupt service routine that wraps a user defined func
       }
   }
 
-//*--- LCD Light delay control
 
-#if PICOFM
-
-  if (TDIM>0 && getWord(MSW,PTT)==true) {
-      TDIM--;
-      if (TDIM==0 && spd.get() == 1) {
-         digitalWrite(10,LCD_OFF);
-      }
-  }
-#endif
+//*******************************************
+//* Device specifig                         *
+//*******************************************
+  handleTimerHook();
 
 //*--- Serve real time clock
 
@@ -1839,6 +1379,7 @@ void Encoder_classic() {
     Encoder_classic();
 
 }
+
 //*--------------------------[System Word Handler]---------------------------------------------------
 //* getSSW Return status according with the setting of the argument bit onto the SW
 //*--------------------------------------------------------------------------------------------------
@@ -1881,6 +1422,7 @@ void storeMEM() {
   EEPROM.write(6, v.tens);
   EEPROM.write(7, v.ones);
 
+
   f=vx.vfo[VFOB];
   vx.computeVFO(f,&v); 
 
@@ -1892,43 +1434,54 @@ void storeMEM() {
   EEPROM.write(13, v.tens);
   EEPROM.write(14, v.ones);
 
-
   EEPROM.write(15, vx.vfoAB);
   EEPROM.write(18,stp.get());
 
-//*---- picoFM specific
-
-#if PICOFM  
-  EEPROM.write(0,sql.get()); 
-  EEPROM.write(16,pwr.get());
-  EEPROM.write(17,wdg.get());
-  EEPROM.write(19,rpt.get());
-  EEPROM.write(20,spd.get());
-  EEPROM.write(21,bdw.get());
-  /*
-  EEPROM.write(22,hpf.get());
-  EEPROM.write(23,lpf.get());
-  EEPROM.write(24,pre.get());
-  */
-  EEPROM.write(25,ctc.get());
-#endif
-
-//*---- sinpleA specific
-#if SINPLEA
-  
-  EEPROM.write(31,band.get());
-
-  for (int i=0; i <= BANDMAX; i++){
-      EEPROM.write(i+32,bandvfo[i]);
-  }
-#endif
+//*-----  
   
   EEPROM.write(26,vfo.get());  
   EEPROM.write(27,MSW);
   EEPROM.write(28,USW);
   EEPROM.write(29,TSW);
 
-  EEPROM.write(30,EEPROM_COOKIE);
+  EEPROM.write(30,vx.vfoband[VFOA]);
+  EEPROM.write(31,vx.vfoband[VFOB]);
+
+  EEPROM.write(32,vx.vfostep[VFOA]);
+  EEPROM.write(33,vx.vfostep[VFOB]);
+
+  EEPROM.write(34,EEPROM_COOKIE);
+
+//*--- store band information
+
+  byte b[4];  
+  for (int i=0; i <= BANDMAX; i++){
+      
+      b[0]=(byte)vx.bandvfo[VFOA][i];
+      b[1]=(byte)vx.bandvfo[VFOA][i]>>8;
+      b[2]=(byte)vx.bandvfo[VFOA][i]>>16;
+      b[3]=(byte)vx.bandvfo[VFOA][i]>>24;
+      
+      EEPROM.write( ((i*8)+0)+40,b[0]);
+      EEPROM.write( ((i*8)+1)+40,b[1]);
+      EEPROM.write( ((i*8)+2)+40,b[2]);
+      EEPROM.write( ((i*8)+3)+40,b[3]);
+      
+      b[0]=(byte)vx.bandvfo[VFOB][i];
+      b[1]=(byte)vx.bandvfo[VFOB][i]>>8;
+      b[2]=(byte)vx.bandvfo[VFOB][i]>>16;
+      b[3]=(byte)vx.bandvfo[VFOB][i]>>24;
+      
+      EEPROM.write( ((i*8)+4)+40,b[0]);
+      EEPROM.write( ((i*8)+5)+40,b[1]);
+      EEPROM.write( ((i*8)+6)+40,b[2]);
+      EEPROM.write( ((i*8)+7)+40,b[3]);
+
+  }
+ 
+//*---- Module dependent implementation
+
+  writeEEPROM();
   memstatus = 1;  // Let program know memory has been written
 };
 
@@ -1986,6 +1539,8 @@ int uppercase (int charbytein)
   
   return charbytein;
 }
+
+
 
 //*=======================================================================================================================================================
 //* Super Library ELEC Freaks LCD Key Shield

@@ -19,8 +19,6 @@
 #include "Arduino.h"
 typedef void (*CALLBACK)();
 
-
-
 typedef struct {
   byte ones;
   byte tens;
@@ -31,6 +29,15 @@ typedef struct {
   byte millions;
  
 } FSTR;
+
+//*============================================================================================
+//* Define band limits
+//*============================================================================================
+//*---- HF band definition
+
+#define BANDMAX 6
+
+
 //*---------------------------------------------------------------------------------------------------
 //* VFOSystem CLASS
 //*---------------------------------------------------------------------------------------------------
@@ -44,7 +51,8 @@ class VFOSystem
       void setVFOFreq(byte VFO,long int fVFO);
       void setVFOShift(byte VFO,long int shiftVFO);
       void setVFOStep(byte VFO,long int stepVFO);
-      void setVFOBand(byte VFO,long int fMIN, long int fMAX);
+      void setVFOLimit(byte VFO,long int fMIN, long int fMAX);
+      void setVFOBand(byte VFO,byte band);
       
       boolean isVFOChanged(byte VFO);
 
@@ -62,6 +70,7 @@ class VFOSystem
       
       long int vfoshift[VFOMAX];
       long int vfostep[VFOMAX];
+      byte     vfoband[VFOMAX];
       long int vfomin[VFOMAX];
       long int vfomax[VFOMAX];
       byte     vforpt[VFOMAX];
@@ -71,6 +80,12 @@ class VFOSystem
       
       CALLBACK changeVFO=NULL;
       CALLBACK changeTX=NULL;
+
+      long int loFreq[BANDMAX+1]={100,1800,3500,7000,14000,21000,28000};
+      long int hiFreq[BANDMAX+1]={60000,2000,3800,7300,14350,21450,29700};
+      long int bandvfo[VFOMAX][BANDMAX+1];
+      
+
   
   private:
       boolean _boot;
@@ -133,7 +148,18 @@ void VFOSystem::setVFOStep(byte VFO,long int stepVFO) {
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO Band
 //*---------------------------------------------------------------------------------------------------
-void VFOSystem::setVFOBand(byte VFO,long int fMIN,long int fMAX) {
+void VFOSystem::setVFOBand(byte VFO,byte band) {
+   
+   if (VFO<VFOA || VFO>VFOB) { return;}
+
+   vfoband[VFO]=band;
+   return;
+  
+}
+//*---------------------------------------------------------------------------------------------------
+//* Set the parameters of a given VFO Band
+//*---------------------------------------------------------------------------------------------------
+void VFOSystem::setVFOLimit(byte VFO,long int fMIN,long int fMAX) {
   
   if (VFO<VFOA || VFO>VFOB) { return;}
 
