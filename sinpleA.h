@@ -442,6 +442,8 @@ void checkBandLimit(){
   Serial.println(hi);
 #endif
 
+  band.mItem=vx.vfoband[vx.vfoAB];
+  stp.mItem=vx.step2code(vx.vfostep[vx.vfoAB]);
   
   if (vx.vfo[VFOA]<vx.loFreq[band.get()]*1000 || vx.vfo[VFOA]>vx.hiFreq[band.get()]*1000) {vx.vfo[VFOA]=vx.loFreq[band.get()]*1000;}
   if (vx.vfo[VFOB]<vx.loFreq[band.get()]*1000 || vx.vfo[VFOB]>vx.hiFreq[band.get()]*1000) {vx.vfo[VFOB]=vx.loFreq[band.get()]*1000;}

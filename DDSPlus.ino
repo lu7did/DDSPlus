@@ -100,7 +100,7 @@
 //*----- EEPROM signature
 
 #define EEPROM_COOKIE  0x1f
-#define EEPROM_RESET   true
+#define EEPROM_RESET   false
 
 #define FI_LOW     0
 #define FI_HIGH   15
@@ -374,6 +374,7 @@ pinSetup();
             vx.vfoband[VFOB]=EEPROM.read(31);
            
             //*-- Save band frequency
+            /*
             byte b[4];  
             for (int i=0; i <= BANDMAX; i++){
 
@@ -392,7 +393,7 @@ pinSetup();
                 vx.bandvfo[VFOB][i]=v;
  
             }
-            
+            */
             readEEPROM();
 
             MSW = EEPROM.read(27);
@@ -1461,7 +1462,7 @@ void storeMEM() {
 
 //*--- store band information
 
-
+/*
   byte b[4];  
   for (int i=0; i <= BANDMAX; i++){
       
@@ -1486,6 +1487,7 @@ void storeMEM() {
       EEPROM.write( ((i*8)+7)+40,b[3]);
 
   }
+*/
  
 //*---- Module dependent implementation
 
