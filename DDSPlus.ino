@@ -48,7 +48,7 @@
 
 //*-------- Copyright and Program Build information
 
-#define PROG_BUILD  "040"
+#define PROG_BUILD  "045"
 #define COPYRIGHT "(c) LU7DID 2018"
 
 
@@ -100,7 +100,10 @@
 //*----- EEPROM signature
 
 #define EEPROM_COOKIE  0x1f
-#define EEPROM_RESET   false
+#define EEPROM_RESET   true
+
+#define FI_LOW     0
+#define FI_HIGH   15
 //*----------------------------------------[DEFINITION]----------------------------------------------
 
 //*--- Control delays
@@ -279,10 +282,12 @@ pinSetup();
 
 //*---- Define the VFO System parameters (Initial Firmware conditions)
  
+  vx.setVFOBand(VFOA,VFO_BAND_START);
   vx.setVFOFreq(VFOA,VFO_START);
   vx.setVFOStep(VFOA,VFO_STEP_1KHz);
   vx.setVFOLimit(VFOA,VFO_START,VFO_END);
 
+  vx.setVFOBand(VFOB,VFO_BAND_START);
   vx.setVFOFreq(VFOB,VFO_START);
   vx.setVFOStep(VFOB,VFO_STEP_1KHz);
   vx.setVFOLimit(VFOB,VFO_START,VFO_END);
@@ -354,15 +359,21 @@ pinSetup();
 
             vx.vfoAB = EEPROM.read(15);        
             vfo.set(EEPROM.read(26));
-            shf.set(EEPROM.read(18));
-
+            
+            
+            if ((EEPROM.read(18) >= FI_LOW) && (EEPROM.read(18)<= FI_HIGH)) {
+              shf.set(EEPROM.read(18));
+            } else {
+              shf.set(FI_LOW);   
+            }
+            
+            vx.vfostep[VFOA]=vx.code2step(EEPROM.read(32));
+            vx.vfostep[VFOB]=vx.code2step(EEPROM.read(33));            
+            
             vx.vfoband[VFOA]=EEPROM.read(30);
             vx.vfoband[VFOB]=EEPROM.read(31);
-
-            vx.vfostep[VFOA]=EEPROM.read(32);
-            vx.vfostep[VFOB]=EEPROM.read(33);
-            
-            
+           
+            //*-- Save band frequency
             byte b[4];  
             for (int i=0; i <= BANDMAX; i++){
 
@@ -381,6 +392,7 @@ pinSetup();
                 vx.bandvfo[VFOB][i]=v;
  
             }
+            
             readEEPROM();
 
             MSW = EEPROM.read(27);
@@ -393,6 +405,8 @@ pinSetup();
 //* Module specific function      *
 //*********************************
   checkBandLimit();
+  
+  
 
 //**********************************************************************************************
 //*--- Initial value for system operating modes
@@ -639,16 +653,7 @@ void showDDS() {
 };
 
 
-//*--------------------------------------------------------------------------------------------
-//* showBand
-//* show Band setting at the display
-//*--------------------------------------------------------------------------------------------
-void showBand() {
 
-  lcd.setCursor(6,0);
-  lcd.print(String(band.getCurrentText()));
- 
-};
 #endif
 
 //****************************************************
@@ -784,7 +789,7 @@ void doSave() {
 
 //*--- Query VFO status
 
-      vx.vfoAB=vfo.get();
+//    vx.vfoAB=vfo.get();
 
 //**************************************************
 //* Device specific parameter saving               *
@@ -792,10 +797,12 @@ void doSave() {
       saveMenu();
 //***************************************************
 
+      menuRoot.save();
+
       setWord(&MSW,CMD,false);
       setWord(&MSW,GUI,false);
 
-      menuRoot.save();
+      
       showPanel();
 
 }
@@ -1212,6 +1219,7 @@ void loop() {
   
     //*--- Handle commands 
   CMD_FSM();
+  
   //*--- Update LCD Display
   LCD_FSM();
  
@@ -1435,7 +1443,7 @@ void storeMEM() {
   EEPROM.write(14, v.ones);
 
   EEPROM.write(15, vx.vfoAB);
-  EEPROM.write(18,stp.get());
+  EEPROM.write(18,shf.get());
 
 //*-----  
   
@@ -1443,16 +1451,16 @@ void storeMEM() {
   EEPROM.write(27,MSW);
   EEPROM.write(28,USW);
   EEPROM.write(29,TSW);
-
-  EEPROM.write(30,vx.vfoband[VFOA]);
-  EEPROM.write(31,vx.vfoband[VFOB]);
-
-  EEPROM.write(32,vx.vfostep[VFOA]);
-  EEPROM.write(33,vx.vfostep[VFOB]);
-
   EEPROM.write(34,EEPROM_COOKIE);
 
+  EEPROM.write(32,vx.step2code(vx.vfostep[VFOA]));
+  EEPROM.write(33,vx.step2code(vx.vfostep[VFOB]));
+
+  EEPROM.write(30,vx.vfoband[VFOA]);
+  EEPROM.write(31,vx.vfoband[VFOB]);  
+
 //*--- store band information
+
 
   byte b[4];  
   for (int i=0; i <= BANDMAX; i++){

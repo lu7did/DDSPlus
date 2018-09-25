@@ -14,6 +14,14 @@
 #define VFOB    1
 #define VFOMAX  2
 
+#define VFO_STEP_1Hz            1
+#define VFO_STEP_10Hz          10
+#define VFO_STEP_100Hz        100
+#define VFO_STEP_1KHz        1000
+#define VFO_STEP_5KHz        5000
+#define VFO_STEP_10KHz      10000
+#define VFO_STEP_100KHz    100000
+#define VFO_STEP_1MHz     1000000
 
 
 #include "Arduino.h"
@@ -53,6 +61,9 @@ class VFOSystem
       void setVFOStep(byte VFO,long int stepVFO);
       void setVFOLimit(byte VFO,long int fMIN, long int fMAX);
       void setVFOBand(byte VFO,byte band);
+
+      long int VFOSystem::code2step(byte b);
+      byte VFOSystem::step2code(long int s);
       
       boolean isVFOChanged(byte VFO);
 
@@ -71,6 +82,7 @@ class VFOSystem
       long int vfoshift[VFOMAX];
       long int vfostep[VFOMAX];
       byte     vfoband[VFOMAX];
+      
       long int vfomin[VFOMAX];
       long int vfomax[VFOMAX];
       byte     vforpt[VFOMAX];
@@ -113,6 +125,41 @@ VFOSystem::VFOSystem(CALLBACK c,CALLBACK t)
   
   if (c!=NULL) {changeVFO=c;}  //* Callback of change VFO frequency
   if (t!=NULL) {changeTX=t;}   //* Callback of TX mode change
+ 
+}
+
+//*---------------------------------------------------------------------------------------------------
+//* Set the parameters of a given VFO step
+//*---------------------------------------------------------------------------------------------------
+long int VFOSystem::code2step(byte b) {
+
+       switch(b) {
+         case 0:                   {return VFO_STEP_1Hz;}
+         case 1:                   {return VFO_STEP_10Hz;}
+         case 2:                   {return VFO_STEP_100Hz;}
+         case 3:                   {return VFO_STEP_1KHz;}
+         case 4:                   {return VFO_STEP_10KHz;}
+         case 5:                   {return VFO_STEP_100KHz;}
+         default:                  {return VFO_STEP_1MHz;}
+     }    
+  return VFO_STEP_1KHz;
+ 
+}
+//*---------------------------------------------------------------------------------------------------
+//* Set the parameters of a given VFO step
+//*---------------------------------------------------------------------------------------------------
+byte VFOSystem::step2code(long int s) {
+
+       switch(s) {
+         case 1:                   {return 0;}
+         case 10:                  {return 1;}
+         case 100:                 {return 2;}
+         case 1000:                {return 3;}
+         case 10000:               {return 4;}
+         case 100000:              {return 5;}
+         default:                  {return 6;}
+     }    
+  return 3;
  
 }
 //*---------------------------------------------------------------------------------------------------
