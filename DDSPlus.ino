@@ -101,9 +101,9 @@
 
 #define EEPROM_COOKIE  0x1f
 #define EEPROM_RESET   false
+#define SAVE_TIME      2000
 
-#define FI_LOW     0
-#define FI_HIGH   15
+
 //*----------------------------------------[DEFINITION]----------------------------------------------
 
 //*--- Control delays
@@ -133,6 +133,8 @@
 #include "VFOSystem.h"
 #include "ClassMenu.h"
 
+//*---- Debug buffer
+char hi[80];
 
 //*-------------------------------------------------------------------------------------------------
 //* Define callback functions
@@ -148,7 +150,7 @@ MenuClass menuRoot(NULL);
 //* Define class to manage VFO
 //*-------------------------------------------------------------------------------------------------
 void showFreq();                       //Prototype fur display used on callback
-VFOSystem vx(showFreq,NULL);
+VFOSystem vx(showFreq,NULL,NULL,NULL);
 
 //*--------------------------------------------------------------------------------------------
 //*---- Definitions for various LCD display shields
@@ -177,8 +179,7 @@ VFOSystem vx(showFreq,NULL);
        #define btnNONE   5   
        #define btnEncodeOK  6
         
-//*---- Debug buffer
-char hi[80];
+
 
 //*--------------------------------------------------------------------------------
 //*--- Pseudo Real Time Clock  
@@ -293,9 +294,8 @@ pinSetup();
   vx.setVFOLimit(VFOB,VFO_START,VFO_END);
 
   vx.setVFO(VFOA);
+  vx.setVFOdds(setDDSFreq);
  
-    
-//*--- initializes the frequency step for both VFO A & B
 //*--- Interrupt manipulation
 //#if LCD_STANDARD
 //
@@ -314,7 +314,7 @@ pinSetup();
   TIMSK1 |= (1 << TOIE1); // enable timer overflow interrupt
   interrupts(); // enable all interrupts
 
-//*--- Init serial port and establish handshake with DRA018F 
+//*--- Init serial port and establish handshake with DRA018F (Work as an object later)
 
   Serial.begin(9600);
   serialQueue[0]=0x00;
@@ -328,6 +328,36 @@ pinSetup();
 //*--- Load the stored configuration in EEPROM (if enabled)
 //*============================================================================================
 
+/* ============================================================================================
+ *  EEPROM Map
+ *  ===========================================================================================
+ * 00 Squelch
+ * 01..07 VFO A
+ * 08..14 VFO B
+ * 15 VFO A/B
+ * 16 PWR
+ * 17 WDG
+ * 18 SHIFT
+ * 19 RPT
+ * 20 SPD
+ * 21 BDW
+ * 22 HPF
+ * 23 LPT
+ * 24
+ * 25 CTCSS
+ * 26 VFO
+ * 27 MSW
+ * 28 USW
+ * 29 TSW
+ * 30 BAND VFO A
+ * 31 BAND VFO B
+ * 32 STEP VFOA
+ * 33 STEP VFOB
+ * 34 EEPROM COOKIE
+ * 35 MODE (VFO/DDS)
+ * 36 VFO LOCK
+ * 
+ */
 #if EEPROM_RESET
     EEPROM.write(34,0);
 #endif    
@@ -349,10 +379,10 @@ pinSetup();
 
 #if DEBUG
 //*----------------------------------------------------------------------
-            sprintf(hi,"EEPROM Read VFOA=%ld",vx.vfo[VFOA]);
+            sprintf(hi,"EEPROM Read VFOA=%ld",vx.get(VFOA));
             Serial.println(hi);
 
-            sprintf(hi,"EEPROM Read VFOB=%ld",vx.vfo[VFOB]);
+            sprintf(hi,"EEPROM Read VFOB=%ld",vx.get(VFOB));
             Serial.println(hi);
 //*----------------------------------------------------------------------            
 #endif            
@@ -385,7 +415,6 @@ pinSetup();
 //* Module specific function      *
 //*********************************
   checkBandLimit();
-  
   
 
 //**********************************************************************************************
@@ -463,15 +492,12 @@ String menuText(byte mItem) {
 void showFreq() {
 
   FSTR v;  
-
     
-  long int f=vx.vfo[vx.vfoAB]; 
+  long int f=vx.get(vx.vfoAB); 
   vx.computeVFO(f,&v);
 
-#if DEBUG
   sprintf(hi,"showFreq f=%ld",f);
   Serial.println(hi);
-#endif
 
 //*---- Prepare to display
   
@@ -633,8 +659,6 @@ void showDDS() {
  
 };
 
-
-
 #endif
 
 //****************************************************
@@ -666,6 +690,7 @@ void showPanel() {
       
       //showFreq();
       showVFO();
+
 
 //*--- Device specific GUI builter
       showGUI();
@@ -772,6 +797,7 @@ void doSave() {
 //* Device specific parameter saving               *
 //**************************************************
       saveMenu();
+     
 //***************************************************
 
       menuRoot.save();
@@ -781,7 +807,7 @@ void doSave() {
 
       
       showPanel();
-
+      showFreq();
 }
 
 //*****************************************************************************************************
@@ -825,6 +851,7 @@ void processVFO() {
           lcd.setCursor(0,1);
           lcd.print((char)126);
        } else {
+          vx.updateVFO(vx.vfoAB,0);      
           lcd.setCursor(0,1);
           lcd.print("X");
        }
@@ -838,6 +865,7 @@ void processVFO() {
           lcd.setCursor(0,1);
           lcd.print((char)127);
        } else {
+          vx.updateVFO(vx.vfoAB,0);
           lcd.setCursor(0,1);
           lcd.print("X");
        }
@@ -1057,7 +1085,8 @@ void CMD_FSM() {
      if (getWord(MSW,GUI)==false) {  
          showMark();
      } else {
-         showSave();
+         //showSave();
+         doSave();
      }
    }
    
@@ -1202,7 +1231,7 @@ void loop() {
   //*--- Write memory to EEPROM when it has been quiet for a while (2 secs)
 
   if (memstatus == 0) {
-    if (timepassed + 2000 < millis()) {
+    if (timepassed + SAVE_TIME < millis()) {
       storeMEM();
     }
   } 
@@ -1391,7 +1420,7 @@ void storeMEM() {
 
 
   FSTR v;   
-  long int f=vx.vfo[VFOA];
+  long int f=vx.get(VFOA);
   vx.computeVFO(f,&v);
  
   if (memstatus==1) {return; }
@@ -1407,7 +1436,7 @@ void storeMEM() {
   EEPROM.write(7, v.ones);
 
 
-  f=vx.vfo[VFOB];
+  f=vx.get(VFOB);
   vx.computeVFO(f,&v); 
 
   EEPROM.write(8,  v.millions);

@@ -53,7 +53,8 @@ class VFOSystem
 {
   public: 
   
-      VFOSystem(CALLBACK c,CALLBACK t);
+      VFOSystem(CALLBACK c,CALLBACK t,CALLBACK r,CALLBACK d);
+      void setVFOdds(CALLBACK d);
       
       void set(byte VFO,long int f);
       long int get(byte VFO);
@@ -64,8 +65,7 @@ class VFOSystem
       void setVFOLimit(byte VFO,long int fMIN, long int fMAX);
       void setVFOBand(byte VFO,byte band);
 
-      long int VFOSystem::code2step(byte b);
-      byte VFOSystem::step2code(long int s);
+  
       
       boolean isVFOChanged(byte VFO);
       boolean isVFOLocked();
@@ -73,14 +73,20 @@ class VFOSystem
       void resetVFO(byte VFO);
       //void resetVFOFreq(byte VFO);
       void computeVFO(long int f, FSTR* v);
+      
 
       void getStr(byte VFO);
       void updateVFO(byte VFO, long int vstep);
+
+      long int code2step(byte b);
+      byte step2code(long int s);
+      
       //long int getVFOFreq(byte VFO);
       //void tx(boolean s);
       
       long int vfo[VFOMAX];
-      boolean lock;
+      boolean VFOlock;
+      long int VFOIFShift;
       
       
       long int vfoshift[VFOMAX];
@@ -97,6 +103,8 @@ class VFOSystem
       
       CALLBACK changeVFO=NULL;
       CALLBACK changeTX=NULL;
+      CALLBACK changeDDS=NULL;
+      CALLBACK changeReset=NULL;
  
 
       long int loFreq[BANDMAX+1]={100,1800,3500,7000,14000,21000,28000};
@@ -124,15 +132,24 @@ class VFOSystem
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
 //*#include "VFOSystem.h"
-VFOSystem::VFOSystem(CALLBACK c,CALLBACK t)
+VFOSystem::VFOSystem(CALLBACK c,CALLBACK t,CALLBACK r,CALLBACK d)
 {
   changeVFO=NULL;
   _tx=false;
-  lock=false;
+  VFOlock=false;
+  VFOIFShift=0;
   
-  if (c!=NULL) {changeVFO=c;}  //* Callback of change VFO frequency
-  if (t!=NULL) {changeTX=t;}   //* Callback of TX mode change
+  if (c!=NULL) {changeVFO=c;}   //* Callback of change VFO frequency
+  if (t!=NULL) {changeTX=t;}    //* Callback of TX mode change
+  if (r!=NULL) {changeReset=r;} //* Callback of VFO Reset 
+  if (d!=NULL) {changeDDS=d;}   //* Callback of DDS change
  
+}
+void VFOSystem::setVFOdds(CALLBACK d) {
+  
+  if (d!=NULL) {changeDDS=d;}   //* Callback of DDS change
+
+  return;
 }
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO step
@@ -195,6 +212,7 @@ void VFOSystem::setVFOShift(byte VFO,long int shiftVFO) {
 //*---------------------------------------------------------------------------------------------------
 void VFOSystem::swapVFO() {
    if (vfoAB==VFOA) {vfoAB=VFOB;} else {vfoAB=VFOA;}
+   resetVFO(vfoAB);
    return;
 }
 
@@ -232,19 +250,7 @@ void VFOSystem::setVFOLimit(byte VFO,long int fMIN,long int fMAX) {
   return;
   
 }
-/*
-//*---------------------------------------------------------------------------------------------------
-//* Set the parameters of a given VFO Frequency
-//*---------------------------------------------------------------------------------------------------
-void VFOSystem::resetVFOFreq(byte VFO) {
-  
-  if (VFO<VFOA || VFO>VFOB) { return;}
-  vfo[VFO]=_rxa[VFO];
-  getStr(VFO);
-  
-  return;
-}
-*/
+
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO Frequency
 //*---------------------------------------------------------------------------------------------------
@@ -256,14 +262,19 @@ void VFOSystem::set(byte VFO,long int f) {
   _rxa[VFO]=f;
   
   if (changeVFO!=NULL) {changeVFO();}
+  if (changeDDS!=NULL) {changeDDS();}
   getStr(VFO);
+  resetVFO(VFO);
   
   return;
   
 }
+//*---------------------------------------------------------------------------------------------------
+//* Return lock status for VFO
+//*---------------------------------------------------------------------------------------------------
 boolean VFOSystem::isVFOLocked(){
 
-  return lock;
+  return VFOlock;
   
 }
 //*---------------------------------------------------------------------------------------------------
@@ -274,22 +285,12 @@ void VFOSystem::resetVFO(byte VFO) {
   if (VFO<VFOA || VFO>VFOB) { return;}
   
   _rxa[VFO]=vfo[VFO];
+  if (changeReset!=NULL) {changeReset();}
   
   return;
   
 }
-/*
-//*---------------------------------------------------------------------------------------------------
-//* Set the TX mode
-//*---------------------------------------------------------------------------------------------------
-void VFOSystem::tx(boolean s) {
-  if (s!=_tx) {
-     _tx=s;
-     if (changeTX!=NULL) {changeTX();}
-  }   
-  
-}
-*/
+
 //*---------------------------------------------------------------------------------------------------
 //* Set the focus VFO
 //*---------------------------------------------------------------------------------------------------
@@ -297,6 +298,7 @@ void VFOSystem::setVFO(byte VFO) {
   
   if (VFO<VFOA || VFO>VFOB) { return;}
   vfoAB = VFO;
+  resetVFO(vfoAB);
   
 }
 //*---------------------------------------------------------------------------------------------------
@@ -339,9 +341,13 @@ boolean VFOSystem::isVFOChanged(byte VFO) {
 //* Set the parameters of a given VFO
 //*---------------------------------------------------------------------------------------------------
 void VFOSystem::updateVFO(byte VFO,long int vstep) {
-
+   
    vfo[VFO]=vfo[VFO]+vstep;
 
+   char hi[80];   
+   sprintf(hi,"updateVFO VFO(%d) vfo=%ld rxa=%ld min=%ld max=%ld",VFO,vfo[VFO],_rxa[VFO],vfomin[VFO],vfomax[VFO]);
+   Serial.println(hi);
+   
    if (vfo[VFO] > vfomax[VFO]) {
        vfo[VFO] = vfomax[VFO];
    } // UPPER VFO LIMIT
@@ -353,13 +359,19 @@ void VFOSystem::updateVFO(byte VFO,long int vstep) {
    getStr(VFO);
 
    if (vfo[VFO]!=_rxa[VFO]) {
-       //_rxa[vfoAB]=vfo[vfoAB];
-       if (changeVFO!=NULL) {
-          changeVFO();}
+      resetVFO(VFO); 
 
+
+      if (changeDDS!=NULL) {
+         changeDDS();
+      }
+   
    }
 
+   if (changeVFO!=NULL) {
+         changeVFO();
+   }
 }
-
+   
 
 

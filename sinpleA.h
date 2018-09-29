@@ -21,6 +21,9 @@
 
 #define VFO_PLL_LOWER        1000
 
+#define FI_LOW     0
+#define FI_HIGH   15
+
 //*=======================================================================================================================================================
 //* SI5351 Library
 //*=======================================================================================================================================================
@@ -36,20 +39,25 @@ Adafruit_SI5351 clkVFO = Adafruit_SI5351();
 
 void BandUpdate();
 void ShiftUpdate();
-void VFOUpdate();
+void vfoUpdate();
 void StepUpdate();
+void LckUpdate();
+void ModUpdate();
+
+//void setDDSFreq();
 
 void showBand();
 void showDDS();
+
 void setWord(byte* SysWord,byte v, boolean val);
 boolean getWord (byte SysWord, byte v);
 
 MenuClass band(BandUpdate);
-MenuClass vfo(VFOUpdate);
+MenuClass vfo(vfoUpdate);
 MenuClass stp(StepUpdate);
 MenuClass shf(ShiftUpdate);
-MenuClass lck(NULL);
-MenuClass mod(NULL);
+MenuClass lck(LckUpdate);
+MenuClass mod(ModUpdate);
 
 
 //*--------------------------------------------------------------------------------------------
@@ -66,32 +74,6 @@ void handleSerialCommand() {
 //**************** To be Implemented !!
   
 }
-/*
-byte step2byte(long int step) {
-
-   if (step==VFO_STEP_100Hz)  {return 0;}
-   if (step==VFO_STEP_1KHz)   {return 1;}
-   if (step==VFO_STEP_10KHz)  {return 2;}
-   if (step==VFO_STEP_100KHz) {return 3;}
-   return 4;
-   
-  
-}
-//*--------------------------------------------------------------------------------------------
-//* readEEPROM
-//* Read specific configuration
-//*--------------------------------------------------------------------------------------------
-long int byte2step(byte s) {
-
-   if (s==0)  {return VFO_STEP_100Hz;}
-   if (s==1)  {return VFO_STEP_1KHz;}
-   if (s==2)  {return VFO_STEP_10KHz;}
-   if (s==3)  {return VFO_STEP_100KHz;}
-   return VFO_STEP_1MHz;
-   
-  
-}
-*/
 
 //*--------------------------------------------------------------------------------------------
 //* defineMenu
@@ -122,11 +104,13 @@ void defineMenu(){
   stp.add((char*)"  1 KHz",NULL);
   stp.set(3);
 
-  lck.add((char*)"Off",NULL);
-  lck.add((char*)"On ",NULL);
-
+  lck.add((char*)"Off",NULL);  
+  lck.set(0);
+  
   mod.add((char*)"DDS",NULL);
-  mod.add((char*)"VFO",NULL);
+  mod.set(0);
+  
+
 /*
   for (int i=0; i <= BANDMAX; i++){
       vx.bandvfo[VFOA][i]=vx.loFreq[i]*1000;
@@ -146,15 +130,8 @@ void pinSetup() {
 //* Set DDS Frequency fur SI5351 
 //* Receive frequency to set expressed in KHz
 //*==============================================================================================================
-void setDDSfreq (unsigned long freq)
-{
+void setDDSFreq () {
 
- //*---- trace code make into DEBUG later
-
-#if DEBUG 
- sprintf(hi,"DDS frequency= %ld",freq);
- Serial.println(hi);
-#endif
  
  
  unsigned long f2;
@@ -165,9 +142,27 @@ void setDDSfreq (unsigned long freq)
  unsigned int Divider2;
  unsigned int rdiv;
 
- //*---- Resolve correct counter setup (recover FI shift from menu)
- if (freq > 0) {
-    f2=(freq-shf.get())*4;
+//*---- Resolve correct counter setup (recover FI shift from menu)
+
+ unsigned long FI=0;
+
+//*----- FI Displacemente
+
+ if (mod.get()>0) {
+    FI=shf.get()*4;
+ } 
+
+//*---- Set DDS with new frequency
+ long int fDDS=vx.get(vx.vfoAB)/1000;
+
+
+ //*---- trace code make into DEBUG later
+ sprintf(hi,"DDS frequency= %ld FI=%ld mod(%d) shf.get=%d",fDDS,FI,mod.get(),shf.get());
+ Serial.println(hi);
+
+ if (fDDS > 0) {
+  
+    f2=(fDDS-FI);
     if (f2<VFO_PLL_LOWER) {
        rdiv = 16;
        f2 = f2 * 16;
@@ -209,7 +204,7 @@ void debugPrint(char* m){
    sprintf(hi,"<%s> vfostep->[A]=%u  [B]=%u  stp.get()=%u",m,vx.vfostep[VFOA],vx.vfostep[VFOB],vx.step2code(stp.mItem));
    Serial.println(hi);
 
-   sprintf(hi,"<%s> VFOA=%ld VFOB=%ld",m,vx.vfo[VFOA],vx.vfo[VFOB]);
+   sprintf(hi,"<%s> VFOA=%ld VFOB=%ld",m,vx.get(VFOA),vx.get(VFOB));
    Serial.println(hi);
 
    sprintf(hi,"<%s> bandvfo[%u][%u]=%ld",m,vx.vfoAB,band.get(),vx.bandvfo[vx.vfoAB][vx.vfoband[vx.vfoAB]]);
@@ -229,7 +224,7 @@ void debugPrint(char* m){
 void saveMenu() {
 
    if (vx.vfoAB != vfo.mItem) {   //Switch from VFO A to B or viceversa
-      debugPrint("VFO Change Entry");
+      debugPrint((char*)"VFO Change Entry");
       
       vx.vfoAB=vfo.mItem;
       
@@ -239,36 +234,38 @@ void saveMenu() {
       stp.mItem=(vx.step2code(vx.vfostep[vx.vfoAB]));
       StepUpdate();
       
-      vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
+      //vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
 
-      debugPrint("VFO Change Exit");
-      //vx.vfo[vx.vfoAB]=vx.loFreq[band.mItem]*1000;  //---> Revisar luego si debe volver al comienzo o poner un valor en memoria
+      debugPrint((char*)"VFO Change Exit");
        
    } else {
 
       if (vx.vfoband[vx.vfoAB]!=band.mItem) { //Switch Band
-         debugPrint("BAND Change Entry"); 
-         //vx.bandvfo[vx.vfoAB][vx.vfoband[vx.vfoAB]]=vx.vfo[vx.vfoAB];
+         debugPrint((char*)"BAND Change Entry"); 
          vx.vfoband[vx.vfoAB]=band.mItem;
-         vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
        
-            if ((vx.vfo[vx.vfoAB]>=vx.loFreq[band.mItem]*1000) && (vx.vfo[vx.vfoAB]<=vx.hiFreq[band.mItem]*1000)) {
+/*            if ((vx.get(vx.vfoAB])>=vx.loFreq[band.mItem]*1000) && (vx.get(vx.vfoAB)<=vx.hiFreq[band.mItem]*1000)) {
 
             } else {
-              vx.vfo[vx.vfoAB]=vx.loFreq[band.mItem]*1000;  //* solo altera la frecuencia si resulta que es distinto
+              vx.set(vx.vfoAB,vx.loFreq[band.mItem]*1000);  //* solo altera la frecuencia si resulta que es distinto
             }
-          vx.vfo[vx.vfoAB]=vx.loFreq[vx.vfoband[vx.vfoAB]]*1000;
-          debugPrint("BAND Change Exit"); 
+*/            
+          vx.set(vx.vfoAB,vx.loFreq[vx.vfoband[vx.vfoAB]]*1000);
+          debugPrint((char*)"BAND Change Exit"); 
    
     }
 
          if (vx.vfostep[vx.vfoAB]!=vx.code2step(stp.mItem)) { //Change tuning step
-            debugPrint("STEP Change Entry");
+            debugPrint((char*)"STEP Change Entry");
             vx.vfostep[vx.vfoAB]=vx.code2step(stp.mItem);
-            debugPrint("STEP Change Exit"); 
+            debugPrint((char*)"STEP Change Exit"); 
          }
    }
+
+   vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
+   vx.set(vx.vfoAB,vx.get(vx.vfoAB));
    
+   //vx.changeVFO();
 
 }
 //*--------------------------------------------------------------------------------------------
@@ -300,16 +297,10 @@ void BandUpdate() {
     default:                         {s=(char*)"10m";break;}; 
   }
 
-  //vx.vfo[vx.vfoAB]=vx.loFreq[band.mItem]*1000; 
-  //vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
 
   band.l.get(0)->mText=s;
   band.CW=false;
   band.CCW=false;
-  
-  //showPanel();
-  //sprintf(hi,"BandUpdate AFTER band.mItem=%u %s",band.mItem,band.l.get(0)->mText);
-  //Serial.println(hi);
   
   return;
   
@@ -342,7 +333,7 @@ void ShiftUpdate() {
 //* FI Shift Update   (CALLBACK from Menu System)
 //* Set FI shift label and limits
 //*--------------------------------------------------------------------------------------------
-void VFOUpdate() {
+void vfoUpdate() {
 
   char* s=(char*)"  "; 
 
@@ -353,8 +344,8 @@ void VFOUpdate() {
       vfo.mItem--;
   }
 
-  if (vfo.mItem==VFOA){s="A";}
-  if (vfo.mItem==VFOB){s="B";}
+  if (vfo.mItem==VFOA){s=(char*)"A";}
+  if (vfo.mItem==VFOB){s=(char*)"B";}
   
   vfo.l.get(0)->mText=s;
   
@@ -363,6 +354,11 @@ void VFOUpdate() {
   
   return;
 }
+
+//*--------------------------------------------------------------------------------------------
+//* LckUpdate Callback
+//* Control VFO Lock
+//*--------------------------------------------------------------------------------------------
 void LckUpdate(){
   char* s=(char*)"    "; 
 
@@ -373,8 +369,8 @@ void LckUpdate(){
       lck.mItem--;
   }
   switch(lck.mItem) {
-    case 0:                          {s=(char*)"Off";vx.lock=false;break;};     
-    default:                         {s=(char*)"On";vx.lock=true;break;};  
+    case 0:                          {s=(char*)"Off";vx.VFOlock=false;break;};     
+    default:                         {s=(char*)"On";vx.VFOlock=true;break;};  
   }
   
   lck.l.get(0)->mText=s;
@@ -383,8 +379,32 @@ void LckUpdate(){
   return;
 }
 //*--------------------------------------------------------------------------------------------
-//* FI Shift Update   (CALLBACK from Menu System)
-//* Set FI shift label and limits
+//* ModUpdate Callback
+//* Control VFO Mode (DDS/VFO)
+//*--------------------------------------------------------------------------------------------
+void ModUpdate(){
+  char* s=(char*)"    "; 
+
+  if (mod.mItem < 1 && mod.CW == true) {
+      mod.mItem++;
+  }
+  if (mod.mItem > 0 && mod.CCW == true) {
+      mod.mItem--;
+  }
+
+  switch(mod.mItem) {
+      case 0:              {s=(char*)"DDS";break;};
+      default:             {s=(char*)"VFO";break;};  
+  }
+  
+  mod.l.get(0)->mText=s;
+  mod.CW=false;
+  mod.CCW=false;
+  return;
+}
+//*--------------------------------------------------------------------------------------------
+//* Step Update
+//* Set step limit
 //*--------------------------------------------------------------------------------------------
 void StepUpdate() {
 
@@ -422,9 +442,30 @@ void readEEPROM(){
      Serial.println(hi);
 #endif
 
+     byte c=EEPROM.read(35);
+     byte b=EEPROM.read(36);
+
+     if ((b>=0) && (b<=1)){lck.set(b);}
+     if ((c>=0) && (c<=1)){mod.set(b);}
  
      return;
 }    
+
+//*--------------------------------------------------------------------------------------------
+//* writeEEPROM
+//* Write specific configuration
+//*--------------------------------------------------------------------------------------------
+
+void writeEEPROM() {
+  
+  
+  EEPROM.write(18,shf.get());
+  EEPROM.write(35,mod.get());
+  EEPROM.write(36,lck.get());
+  
+  
+  return;
+}
 //*--------------------------------------------------------------------------------------------
 //* showBand
 //* show Band setting at the display
@@ -436,30 +477,48 @@ void showBand() {
  
 };      
 //*--------------------------------------------------------------------------------------------
-//* writeEEPROM
-//* Write specific configuration
+//* showMode
+//* show DDS Mode
 //*--------------------------------------------------------------------------------------------
+void showMode() {
 
-void writeEEPROM() {
+  lcd.setCursor(12,1);
+  if (lck.mItem==0) {
+    lcd.print("dds");
+  } else {
+    lcd.print("vfo");
+  }
   
+ 
+};     
+//*--------------------------------------------------------------------------------------------
+//* showLock
+//* show Lock Mode
+//*--------------------------------------------------------------------------------------------
+void showLock() {
+
+  lcd.setCursor(10,1);
+  if (lck.mItem==0) {
+    lcd.print(" ");
+  } else {
+    lcd.print("X");
+  }
   
-  EEPROM.write(18,shf.get());
-  
-  
-  return;
-}
+ 
+};     
 //*--------------------------------------------------------------------------------------------
 //* writeEEPROM
 //* Write specific configuration
 //*--------------------------------------------------------------------------------------------
 void showGUI(){
       showBand();
-      showDDS();
+      showLock();
+      showMode();
       return;
 }
 //*--------------------------------------------------------------------------------------------
-//* writeEEPROM
-//* Write specific configuration
+//* checkBandLimit
+//* Verify if the set frequency is within the band limits and correct
 //*--------------------------------------------------------------------------------------------
 void checkBandLimit(){
 
@@ -467,21 +526,22 @@ void checkBandLimit(){
   sprintf(hi,"setup band=%i",band.get());
   Serial.println(hi);
   
-  sprintf(hi,"entry with VFOA=%ld VFOB=%ld",vx.vfo[VFOA],vx.vfo[VFOB]);
+  sprintf(hi,"entry with VFOA=%ld VFOB=%ld",vx.get(VFOA),vx.get(VFOB));
   Serial.println(hi);
 #endif
 
   band.mItem=vx.vfoband[vx.vfoAB];
   stp.mItem=vx.step2code(vx.vfostep[vx.vfoAB]);
+  vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
   
   if (vx.get(VFOA)<vx.loFreq[band.get()]*1000 || vx.get(VFOA)>vx.hiFreq[band.get()]*1000) {vx.set(VFOA,vx.loFreq[band.get()]*1000);}
-  if (vx.vfo[VFOB]<vx.loFreq[band.get()]*1000 || vx.vfo[VFOB]>vx.hiFreq[band.get()]*1000) {vx.set(VFOB,vx.loFreq[band.get()]*1000);}
+  if (vx.get(VFOB)<vx.loFreq[band.get()]*1000 || vx.get(VFOB)>vx.hiFreq[band.get()]*1000) {vx.set(VFOB,vx.loFreq[band.get()]*1000);}
 
   BandUpdate();
   StepUpdate();
 
 #if DEBUG
-  sprintf(hi,"exit checkBandLimit with VFOA=%ld VFOB=%ld",vx.vfo[VFOA],vx.vfo[VFOB]);
+  sprintf(hi,"exit checkBandLimit with VFOA=%ld VFOB=%ld",vx.get(VFOA),vx.get(VFOB));
   Serial.println(hi);
 #endif
   
@@ -493,8 +553,7 @@ void checkBandLimit(){
 //* Device specific frequency display
 //*-----------------------------------------------------------------------------------------------------------------------------------
 void setFrequencyHook(long int f,FSTR* v) {
-
-    long int fDDS=f/1000;
+ 
 
 #if DEBUG  
   sprintf(hi,"Frequency %ld",f);
@@ -506,8 +565,7 @@ void setFrequencyHook(long int f,FSTR* v) {
 //*******************************
 //* Setup DDS Frequency         *
 //*******************************
-  //*---- Set DDS with new frequency
-  setDDSfreq(fDDS);
+
 
   if (stp.get()<3) {
      lcd.print(" ");
@@ -519,11 +577,12 @@ void setFrequencyHook(long int f,FSTR* v) {
      lcd.print((*v).ones);
   }
 
-  //*---- In current band and vfo store last used frequency
-  //vx.bandvfo[vx.vfoAB][band.get()]=f/1000;
   
 }
-
+//*--------------------------------------------------------------------------------------------
+//* setSysOM
+//* Setup specific System Vars
+//*--------------------------------------------------------------------------------------------
 void setSysOM(){
   
   setWord(&USW,CONX,false);
@@ -543,11 +602,18 @@ void setSysOM(){
 
   return;
 }
+//*--------------------------------------------------------------------------------------------
+//* handleTimerHook
+//* Hook for timer tick
+//*--------------------------------------------------------------------------------------------
 
 void handleTimerHook(){
 
 }
-
+//*--------------------------------------------------------------------------------------------
+//* showVFOHook
+//* Hook for the VFO display
+//*--------------------------------------------------------------------------------------------
 void showVFOHook(){
   lcd.setCursor(0,0);
   lcd.print("Vfo");
