@@ -55,6 +55,8 @@ class VFOSystem
   
       VFOSystem(CALLBACK c,CALLBACK t);
       
+      void set(byte VFO,long int f);
+      long int get(byte VFO);
       void setVFO(byte VFO);
       void setVFOFreq(byte VFO,long int fVFO);
       void setVFOShift(byte VFO,long int shiftVFO);
@@ -66,6 +68,7 @@ class VFOSystem
       byte VFOSystem::step2code(long int s);
       
       boolean isVFOChanged(byte VFO);
+      boolean isVFOLocked();
 
       void resetVFO(byte VFO);
       //void resetVFOFreq(byte VFO);
@@ -77,6 +80,7 @@ class VFOSystem
       //void tx(boolean s);
       
       long int vfo[VFOMAX];
+      boolean lock;
       
       
       long int vfoshift[VFOMAX];
@@ -88,14 +92,16 @@ class VFOSystem
       byte     vforpt[VFOMAX];
       byte     vfoAB=VFOA;
       void     swapVFO();
+      
       FSTR     vfostr[VFOMAX];
       
       CALLBACK changeVFO=NULL;
       CALLBACK changeTX=NULL;
+ 
 
       long int loFreq[BANDMAX+1]={100,1800,3500,7000,14000,21000,28000};
       long int hiFreq[BANDMAX+1]={60000,2000,3800,7300,14350,21450,29700};
-      long int bandvfo[VFOMAX][BANDMAX+1];
+      //long int bandvfo[VFOMAX][BANDMAX+1];
       
 
   
@@ -122,12 +128,23 @@ VFOSystem::VFOSystem(CALLBACK c,CALLBACK t)
 {
   changeVFO=NULL;
   _tx=false;
+  lock=false;
   
   if (c!=NULL) {changeVFO=c;}  //* Callback of change VFO frequency
   if (t!=NULL) {changeTX=t;}   //* Callback of TX mode change
  
 }
-
+//*---------------------------------------------------------------------------------------------------
+//* Set the parameters of a given VFO step
+//*---------------------------------------------------------------------------------------------------
+long int VFOSystem::get(byte b){
+  
+  if ((b<VFOA) && (b>VFOB)) {
+     return vfo[VFOA];
+  }
+ 
+  return vfo[b];   
+}
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO step
 //*---------------------------------------------------------------------------------------------------
@@ -231,16 +248,22 @@ void VFOSystem::resetVFOFreq(byte VFO) {
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO Frequency
 //*---------------------------------------------------------------------------------------------------
-void VFOSystem::setVFOFreq(byte VFO,long int fVFO) {
+void VFOSystem::set(byte VFO,long int f) {
   
   if (VFO<VFOA || VFO>VFOB) { return;}
   
-  vfo[VFO]=fVFO;
-  _rxa[VFO]=fVFO;
+  vfo[VFO]=f;
+  _rxa[VFO]=f;
   
+  if (changeVFO!=NULL) {changeVFO();}
   getStr(VFO);
   
   return;
+  
+}
+boolean VFOSystem::isVFOLocked(){
+
+  return lock;
   
 }
 //*---------------------------------------------------------------------------------------------------

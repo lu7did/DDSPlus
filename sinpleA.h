@@ -48,6 +48,8 @@ MenuClass band(BandUpdate);
 MenuClass vfo(VFOUpdate);
 MenuClass stp(StepUpdate);
 MenuClass shf(ShiftUpdate);
+MenuClass lck(NULL);
+MenuClass mod(NULL);
 
 
 //*--------------------------------------------------------------------------------------------
@@ -104,6 +106,8 @@ void defineMenu(){
   menuRoot.add((char*)"VFO",&vfo);
   menuRoot.add((char*)"Step",&stp);
   menuRoot.add((char*)"IF Shift",&shf);
+  menuRoot.add((char*)"Lock",&lck);
+  menuRoot.add((char*)"Mode",&mod);
 
   band.add((char*)"Off      ",NULL);
   band.set(0);
@@ -118,11 +122,17 @@ void defineMenu(){
   stp.add((char*)"  1 KHz",NULL);
   stp.set(3);
 
+  lck.add((char*)"Off",NULL);
+  lck.add((char*)"On ",NULL);
+
+  mod.add((char*)"DDS",NULL);
+  mod.add((char*)"VFO",NULL);
+/*
   for (int i=0; i <= BANDMAX; i++){
       vx.bandvfo[VFOA][i]=vx.loFreq[i]*1000;
       vx.bandvfo[VFOB][i]=vx.loFreq[i]*1000;
   }
-
+^*/
 }
 //*--------------------------------------------------------------------------------------------
 //* pinSetup
@@ -238,7 +248,7 @@ void saveMenu() {
 
       if (vx.vfoband[vx.vfoAB]!=band.mItem) { //Switch Band
          debugPrint("BAND Change Entry"); 
-         vx.bandvfo[vx.vfoAB][vx.vfoband[vx.vfoAB]]=vx.vfo[vx.vfoAB];
+         //vx.bandvfo[vx.vfoAB][vx.vfoband[vx.vfoAB]]=vx.vfo[vx.vfoAB];
          vx.vfoband[vx.vfoAB]=band.mItem;
          vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
        
@@ -247,7 +257,7 @@ void saveMenu() {
             } else {
               vx.vfo[vx.vfoAB]=vx.loFreq[band.mItem]*1000;  //* solo altera la frecuencia si resulta que es distinto
             }
-          vx.vfo[vx.vfoAB]=vx.bandvfo[vx.vfoAB][vx.vfoband[vx.vfoAB]];
+          vx.vfo[vx.vfoAB]=vx.loFreq[vx.vfoband[vx.vfoAB]]*1000;
           debugPrint("BAND Change Exit"); 
    
     }
@@ -353,6 +363,25 @@ void VFOUpdate() {
   
   return;
 }
+void LckUpdate(){
+  char* s=(char*)"    "; 
+
+  if (lck.mItem < 1 && lck.CW == true) {
+      lck.mItem++;
+  }
+  if (lck.mItem > 0 && lck.CCW == true) {
+      lck.mItem--;
+  }
+  switch(lck.mItem) {
+    case 0:                          {s=(char*)"Off";vx.lock=false;break;};     
+    default:                         {s=(char*)"On";vx.lock=true;break;};  
+  }
+  
+  lck.l.get(0)->mText=s;
+  lck.CW=false;
+  lck.CCW=false;
+  return;
+}
 //*--------------------------------------------------------------------------------------------
 //* FI Shift Update   (CALLBACK from Menu System)
 //* Set FI shift label and limits
@@ -445,8 +474,8 @@ void checkBandLimit(){
   band.mItem=vx.vfoband[vx.vfoAB];
   stp.mItem=vx.step2code(vx.vfostep[vx.vfoAB]);
   
-  if (vx.vfo[VFOA]<vx.loFreq[band.get()]*1000 || vx.vfo[VFOA]>vx.hiFreq[band.get()]*1000) {vx.vfo[VFOA]=vx.loFreq[band.get()]*1000;}
-  if (vx.vfo[VFOB]<vx.loFreq[band.get()]*1000 || vx.vfo[VFOB]>vx.hiFreq[band.get()]*1000) {vx.vfo[VFOB]=vx.loFreq[band.get()]*1000;}
+  if (vx.get(VFOA)<vx.loFreq[band.get()]*1000 || vx.get(VFOA)>vx.hiFreq[band.get()]*1000) {vx.set(VFOA,vx.loFreq[band.get()]*1000);}
+  if (vx.vfo[VFOB]<vx.loFreq[band.get()]*1000 || vx.vfo[VFOB]>vx.hiFreq[band.get()]*1000) {vx.set(VFOB,vx.loFreq[band.get()]*1000);}
 
   BandUpdate();
   StepUpdate();

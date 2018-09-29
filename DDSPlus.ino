@@ -283,12 +283,12 @@ pinSetup();
 //*---- Define the VFO System parameters (Initial Firmware conditions)
  
   vx.setVFOBand(VFOA,VFO_BAND_START);
-  vx.setVFOFreq(VFOA,VFO_START);
+  vx.set(VFOA,VFO_START);
   vx.setVFOStep(VFOA,VFO_STEP_1KHz);
   vx.setVFOLimit(VFOA,VFO_START,VFO_END);
 
   vx.setVFOBand(VFOB,VFO_BAND_START);
-  vx.setVFOFreq(VFOB,VFO_START);
+  vx.set(VFOB,VFO_START);
   vx.setVFOStep(VFOB,VFO_STEP_1KHz);
   vx.setVFOLimit(VFOB,VFO_START,VFO_END);
 
@@ -340,12 +340,12 @@ pinSetup();
             //*---- Recover frequency for VFOA
             char hi[12];    
             sprintf(hi,"%3d%1d%1d%1d%1d%1d%1d",EEPROM.read(1),EEPROM.read(2),EEPROM.read(3),EEPROM.read(4),EEPROM.read(5),EEPROM.read(5),EEPROM.read(6),EEPROM.read(7));
-            vx.vfo[VFOA]=String(hi).toInt();
+            vx.set(VFOA,String(hi).toInt());
 
             
             //*---- Recover frequency for VFOB
             sprintf(hi,"%3d%1d%1d%1d%1d%1d%1d",EEPROM.read(8),EEPROM.read(9),EEPROM.read(10),EEPROM.read(11),EEPROM.read(12),EEPROM.read(13),EEPROM.read(14));
-            vx.vfo[VFOB]=String(hi).toInt();            
+            vx.set(VFOB,String(hi).toInt());            
 
 #if DEBUG
 //*----------------------------------------------------------------------
@@ -373,27 +373,6 @@ pinSetup();
             vx.vfoband[VFOA]=EEPROM.read(30);
             vx.vfoband[VFOB]=EEPROM.read(31);
            
-            //*-- Save band frequency
-            /*
-            byte b[4];  
-            for (int i=0; i <= BANDMAX; i++){
-
-                b[0]=EEPROM.read( ((i*8)+0)+40);
-                b[1]=EEPROM.read( ((i*8)+1)+40);
-                b[2]=EEPROM.read( ((i*8)+2)+40);
-                b[3]=EEPROM.read( ((i*8)+3)+40);
-                long int v = (long int)((b[3] << 24) | (b[2] << 16) | (b[1] << 8) | (b[0]) );
-                vx.bandvfo[VFOA][i]=v;
-
-                b[0]=EEPROM.read( ((i*8)+4)+40);
-                b[1]=EEPROM.read( ((i*8)+5)+40);
-                b[2]=EEPROM.read( ((i*8)+6)+40);
-                b[3]=EEPROM.read( ((i*8)+7)+40);
-                v = (long int)((b[3] << 24) | (b[2] << 16) | (b[1] << 8) | b[0]);
-                vx.bandvfo[VFOB][i]=v;
- 
-            }
-            */
             readEEPROM();
 
             MSW = EEPROM.read(27);
@@ -457,6 +436,7 @@ pinSetup();
 //* End of initialization and setup *
 //***********************************
   showPanel();
+  showFreq();
 
 }
 //*****************************************************************************************************
@@ -684,7 +664,7 @@ void showPanel() {
       lcd.clear();
       lcd.setCursor(0,0);
       
-      showFreq();
+      //showFreq();
       showVFO();
 
 //*--- Device specific GUI builter
@@ -788,10 +768,6 @@ void doSave() {
       byte j=z->mItem;
       byte k=z->mItemBackup;
 
-//*--- Query VFO status
-
-//    vx.vfoAB=vfo.get();
-
 //**************************************************
 //* Device specific parameter saving               *
 //**************************************************
@@ -841,33 +817,32 @@ void restoreFSM() {
 //*----------------------------------------------------------------------------------------------------
 void processVFO() {
 
-//int v1;
-
-#if DEBUG
-   sprintf(hi,"processVFO Entry VFO %i %i %ld",vx.vfoAB,vx.vfostep[vx.vfoAB],vx.vfo[vx.vfoAB]);
-   Serial.println(hi);
-#endif
    
    if (getWord(USW,BCW)==true) {
 
-       vx.updateVFO(vx.vfoAB,vx.vfostep[vx.vfoAB]);
-       lcd.setCursor(0,1);
-       lcd.print((char)126);
+       if (vx.isVFOLocked()==false){
+          vx.updateVFO(vx.vfoAB,vx.vfostep[vx.vfoAB]);      
+          lcd.setCursor(0,1);
+          lcd.print((char)126);
+       } else {
+          lcd.setCursor(0,1);
+          lcd.print("X");
+       }
    
    }
    
    if (getWord(USW,BCCW)==true) {
        
-       vx.updateVFO(vx.vfoAB,-vx.vfostep[vx.vfoAB]); 
-       lcd.setCursor(0,1);
-       lcd.print((char)127);
+       if (vx.isVFOLocked()==false){
+          vx.updateVFO(vx.vfoAB,-vx.vfostep[vx.vfoAB]); 
+          lcd.setCursor(0,1);
+          lcd.print((char)127);
+       } else {
+          lcd.setCursor(0,1);
+          lcd.print("X");
+       }
    
    }
-
-#if DEBUG   
-   sprintf(hi,"processVFO Exit VFO %i %i %i",vx.vfoAB,vx.vfostep[vx.vfoAB],vx.vfo[vx.vfoAB]);
-   Serial.println(hi);
-#endif
    
    T4=LCD_DELAY;
  
