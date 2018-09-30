@@ -10,6 +10,9 @@
 
 #include "Arduino.h"
 
+//*--------------------------------------------------------------------------------------------------
+//* Structure to exchange with other objects (API)
+//*--------------------------------------------------------------------------------------------------
 typedef struct {
   byte    cmd;
   byte*   bCAT;
@@ -24,10 +27,8 @@ typedef byte (*CALLAPI)(APISTR* a);
 
 
 //*============================================================================================
-//* Define band limits
+//* Define max size for serial queues and max number of command byte
 //*============================================================================================
-//*---- HF band definition
-
 #define QUEUEMAX  16        // Queue of incoming characters 
 #define CATMAX 5            // Queue of CAT commands
 //*---------------------------------------------------------------------------------------------------
@@ -43,6 +44,7 @@ int uppercase (int charbytein);
 class CATSystem
 {
   public:   
+      
       CATSystem(CALLBACK a);
       void addQueue(char c);
       char getQueue();
@@ -55,7 +57,6 @@ class CATSystem
 
       CALLAPI  api=NULL;
       CALLBACK hook=NULL;
-
       APISTR   a;
   
   private:
@@ -80,10 +81,6 @@ class CATSystem
 //*****************************************************************************************************
 //*                               CAT Finite Status Machine (FSM)
 //*                             Implemented at SerialEvent Handler
-//*
-//*
-//*
-//*
 //*****************************************************************************************************
 //*======================================================================================================
 //*                                   CAT Sub-System
@@ -92,8 +89,7 @@ class CATSystem
 CATSystem::CATSystem(CALLBACK s)
 {
 
-//*---- This is the API callback
-  
+//*---- This is the API callback  
  hook=s;
  
 }
@@ -109,7 +105,8 @@ if(pQueue < QUEUEMAX)
   pQueue++;
 }
 
-//*--- Now process it
+//*--- Now process characters in the queue
+
 processQueue();
 
 }
@@ -145,7 +142,7 @@ char CATSystem::getQueue() {
 }
 
 //*--------------------------------------------------------------------------------------------
-//* process HEX input (esto hay que retrabajarlo muchisimo)
+//* process Queue extract elements from the queue and process command if detected as completed
 //*--------------------------------------------------------------------------------------------
 void CATSystem::processQueue() {
  
@@ -158,7 +155,7 @@ void CATSystem::processQueue() {
 
 #if DEBUGCAT
 //*-------------------------------------------*
-//* This parts executes only in DEBUGCAT mode    *
+//* This parts executes only in DEBUGCAT mode *
 //*-------------------------------------------* 
  if (pQueue>=4) {
    
@@ -193,7 +190,7 @@ void CATSystem::processQueue() {
 
 #else
 //*-------------------------------------------*
-//* This parts executes only in !DEBUGCAT mode   *
+//* This parts executes only in !DEBUGCAT mode*
 //*-------------------------------------------* 
 
    while (pQueue>0) {      
@@ -235,341 +232,11 @@ if (hook!=NULL) {
   return;
 }
 
- //*----- Send CAT response and clear command area
- 
+ //*----- Send CAT response and clear command area 
  if (a.r==true){
     sendCAT(a.rc);
  }
  
- clearCAT();
- return;
-
-
-
- switch(bufferCAT[CATMAX-1]) {
-
- case 0x00   :{
-               //Serial.println("CAT Command 0x00 (LOCK) -- N/I");
-              //*--- Must return 0x00 if not locked 0xf0 if locked, as locked is not supported return always CAT_LOCKED
-              rc=0x00;
-              break;
-              }
- 
- case 0x01   : {//Process CAT FREQ (OK)
-               //Serial.println("CAT Command 0x01 (FREQ)");
-               fx=0;
-               k =1000000;
-               for (int i=0;i<4;i++) {
-                   b[i]=bcd2byte(bufferCAT[i]);
-                   fx=fx+(b[i]*k);
-                   k=k/100;
-               }  
-               //*---> v.set(v.vfoAB,fx*10);
-               //*----->CALLBACK vfo[bandMenu.mItem][vfoMenu.mItem]=fx*10;              
-               //*----->CALLBACK showPanel();
-               clearCAT();
-               return;
-               }
- 
- case 0x02   : { //Process CAT SPLIT ON/OFF command (OK)
-                //Serial.println("CAT Command 0x02 (SPLIT ON)");
-                /* CALLBACK Split
-                if (splMenu.mItem == 0) {
-                    rc=0x00;
-                } else {
-                    rc=0xf0;
-                }
-                splMenu.mItem=1;
-                showPanel();
-                */
-                rc=0x00;
-                break;
-               }
- 
-  case 0x03  : {
-                //Serial.println("CAT Command 0x03 (READ STATUS)"); (OK)
-                //* Return 5 bytes with status XX XX XX XX 01
-                /* CALLBACK Band Status*/
-                //*----> fx=v.get(v.vfoAB)/10;
-                //fx=vfo[bandMenu.mItem][vfoMenu.mItem]/10;
-                k=1000000;
-                unsigned long j=0;
-                for (int i=0;i<4;i++) {
-                   j=fx/k;
-                   b[i]=byte2bcd((byte)j);
-                   fx=fx-(j*k);
-                   k=k/100;
-                   sendCAT(b[i]);                   
-                 }  
-                rc=0x01;
-                break;
-
-                /*
-                switch(modeMenu.mItem) {
-                  case 0: {sendCAT(0x02); break;}
-                  case 1: {sendCAT(0x03); break;}
-
-//*=========================================================================================================                 
-                  #if WSPR
-                      case 2: {sendCAT(0x0c); break;}   //FT-817 PKT (0x0c) assigned to WSPR mode here
-                  #endif
-//*=========================================================================================================
-
-                  default:{sendCAT(0x02); break;}
-                }
-                */
-                
-   
-                return;
-               }
- 
- case 0x05   : {                              //Process CAT RIT ON/OFF command
-                //Serial.println("CAT Command 0x05 (RIT ON)");
-                /*CALLBACK RIT
-                if (ritMenu.mItem == 0) {
-                    rc=0x00;
-                } else {
-                    rc=0xf0;
-                }
-                ritMenu.mItem=1;
-                showPanel();
-                */
-                rc=0x00;
-                break;
-
-                }
-
-case 0x07  : {
-                //Serial.println("CAT Command 0x07 (OPERATING MODE)");
-                /*CALLBACK Operating Mode
-                switch(bufferCAT[0]){
-                  case 0x02: {
-                             modeMenu.mItem = 0x00;
-                             }
-                  case 0x03: {
-                             modeMenu.mItem = 0x01;
-                  }
-//*=========================================================================================================                  
-                  #if WSPR
-                      case 0x0c: {
-                                  modeMenu.mItem = 0x02;
-                      }
-                  #endif
-//*=========================================================================================================
-                  
-
-                  default:   {
-                             modeMenu.mItem = 0x00;
-                  }
-                }
-                
-                showPanel();
-                */
-                rc=0x01;
-                break;
-                
-               }
-
-case 0x08   :{
-               //Serial.println("CAT Command 0x08 (PTT ON)");
-              //*--- Must return 0x00 if not keyed 0xf0 if already keyed
-              /* CALLBACK PTT
-               *  
-               
-              if (getWord(SSW,KEY) == false) {
-                  rc=0x00;
-              } else {
-                  rc=0xf0;    
-              }
-              doKeyDown(0);
-              showPanel();
-              */
-              rc=0x00;
-              break;
-              }
-
-case 0x10   :{
-               //Serial.println("CAT Command 0x10 (PTT STATUS) UNDOC");
-              //*--- Must return 0x00 if not keyed 0xf0 if already keyed
-              /* CALLBACK PTT OFF
-              if (getWord(SSW,KEY)==false) {
-                 rc=0x00;
-              } else {
-                 rc=0xf0;
-              }
-              */
-              rc=0x00;
-              break;
-              }            
-
-case 0x80   :{
-               //Serial.println("CAT Command 0x80 (LOCK OFF)");
-              //*--- Must return 0x00 if already locked 0xf0 if not already locked
-              rc=0x00;
-              break;
-              } 
-              
- case 0x81   :{
-               //Serial.println("CAT Command 0x81 (TOGGLE VFOA/B)");
-              //*--- Toggle between VFO-A and VFO-B no response 
-              /* CALLBACK SWAP
-              if (vfoMenu.mItem == VFOA) {
-                 vfoMenu.mItem=VFOB;
-              } else {
-                 vfoMenu.mItem=VFOA;
-              }
-              showPanel();
-              */
-              //*----> v.swapVFO();
-              clearCAT();
-              return;
-              }            
-
- case 0x82   :{
-               //Serial.println("CAT Command 0x82 (SPLIT OFF)");
-              //*--- Must return 0x00 if already split 0xf0 if not already split
-              /* CALLBACK SPLIT
-               *  
-               
-              if (splMenu.mItem == 0) {
-                  rc=0xf0;
-              } else {
-                  rc=0x00;    
-              }
-              splMenu.mItem=0;
-              showPanel();
-              */
-              rc=0x00;
-              break;
-              }  
-
-case 0x85   :{
-               //Serial.println("CAT Command 0x82 (RIT OFF)");
-              //*--- Must return 0x00 if already split 0xf0 if not already split
-              /* CALLBACK RIT
-              if (ritMenu.mItem == 0) {
-                  rc=0x0f;
-              } else {
-                  rc=0x00;    
-              }
-              ritMenu.mItem=0;
-              showPanel();
-              */
-              rc=0x00;
-              break;
-              }           
-
-case 0x88   :{
-               //Serial.println("CAT Command 0x88 (PTT OFF)");
-              //*--- Must return 0x00 if already keyed 0xf0 if not already keyed
-              /* CALLBACK PTT OFF
-              if (getWord(SSW,KEY)==true) {
-                 rc=0x00;
-              } else {
-                 rc=0xf0;
-              }
-              doKeyUp();
-              doKeyEnd();    
-              showPanel();
-              */
-              rc=0x00;
-              break;
-              }           
-
-case 0xa7   :{
-               //Serial.println("CAT Command 0xa7 (Radio Configuration) UnDoc");
-              //*--- Return an area of data, fake answer based on recommendation from KA7OEI web page 
-              sendCAT(0xA7);
-              sendCAT(0x02);
-              sendCAT(0x00);
-              sendCAT(0x04);
-              sendCAT(0x67);
-              sendCAT(0xD8);
-              sendCAT(0xBF);
-              sendCAT(0xD8);
-              sendCAT(0xBF);
-              //*---    
-              clearCAT();
-              return;
-              }           
-case 0xba   :{
-               //Serial.println("CAT Command 0xba (Unknown) UnDoc");
-              //*--- Returns 0x00 
-              rc=0x00;    
-              break;
-              }     
-case 0xbd   :{
-               //Serial.println("CAT Command 0xbd (Read TX Meter) UnDoc");
-              //*--- Returns 0x00 on RX return [xx][yy] on TX with BCD encoding of PWR,VSWR,ALC,MOD 
-              sendCAT(0x00);  //* PWR & VSWR     --- TO BE IMPLEMENTED FROM METER SIGNAL --
-              sendCAT(0x00);  //* ALC & MOD 
-              clearCAT();
-              return;
-              }               
-case 0xe7   :{
-               //Serial.println("CAT Command 0xe7 (Read Receiver status)");
-              //*--- Returns [byte] with receiver status 
-              rc=0x00;
-              //rc=rc | Smeter;
-              break;
-              }
-case 0xf5   :{
-               //Serial.println("CAT Command 0xf5 (Set clarifier status)");
-              //*--- receive [dir][x][10/1 KHz][100/10 Hz] 
-              /* CALLBACK Clarifier status
-              fx=0;
-              k =100;
-
-              for (int i=2;i<4;i++) {
-                   b[i]=bcd2byte(bufferCAT[i]);
-                   fx=fx+(b[i]*k);
-                   k=k/100;
-              }  
-
-              ritShift=fx*10;
-              if (bufferCAT[0]!=0) {
-                 ritShift=-1*ritShift;
-              }
-              
-              showPanel();
-              */
-              clearCAT();
-              return;
-              }              
-case 0xf7   :{
-               //Serial.println("CAT Command 0xf7 (Read TX Status)");
-              //*--- return [byte] with status 
-              rc=0x00;  
-              /* CALLBACK TX COMMAND  
-              if(getWord(SSW,KEY)==true){rc=rc | B1000000;}
-              if(splMenu.mItem==1)      {rc=rc | B0010000;}
-              rc=rc | B0001111;    //* Meter as full needs to be reworked later
-              */
-              break;
-              }              
-
- //*--- Several not implemented
- case 0xf9:
- case 0xbe:
- case 0xbb:
- case 0xbc:
- case 0x8f:
- case 0x0f:
- case 0x09:
- case 0x0a:
- case 0x0b:
-              clearCAT();
-              return;
- 
- default     : {
-              shiftCAT(); 
-              return;
-               }  
- }
-
- //*----- Send CAT response and clear command area
- 
- sendCAT(rc);
  clearCAT();
  return;
 }
@@ -603,14 +270,16 @@ void CATSystem::clearCAT() {
 //*--------------------------------------------------------------------------------------------
 void CATSystem::sendCAT(byte m){
 
-#if DEBUGCAT
+#if DEBUGCAT   //* Process only in DEBUG mode
   
   char h[40];
   sprintf(h,"Sending [%x]",m);
   Serial.println(h);
 
-#else
+#else          //* Process when not in DEBUG mode
+
   Serial.println(m);
+
 #endif
 
 }

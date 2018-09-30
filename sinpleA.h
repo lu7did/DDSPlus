@@ -29,9 +29,8 @@
 //*=======================================================================================================================================================
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
-#include <Adafruit_SI5351.h>
 
-Adafruit_SI5351 clkVFO = Adafruit_SI5351();
+#define SI5351 true
 
 //*------------------------------------------------------------------------------------------------
 //* Set here SINPLEA Menu definitions
@@ -62,7 +61,7 @@ MenuClass shf(ShiftUpdate);
 MenuClass lck(LckUpdate);
 MenuClass mod(ModUpdate);
 
-
+#include "DDS_SI5351.h"
 //*--------------------------------------------------------------------------------------------
 //* readEEPROM
 //* Read specific configuration
@@ -70,14 +69,6 @@ MenuClass mod(ModUpdate);
 void doSetGroup() {
   return;
 }
-
-void handleSerialCommand() {
-
-
-//**************** To be Implemented !!
-  
-}
-
 //*--------------------------------------------------------------------------------------------
 //* defineMenu
 //* Define devide specific menu configuration
@@ -113,12 +104,6 @@ void defineMenu(){
   mod.add((char*)"DDS",NULL);
   mod.set(0);
 
-/*
-  for (int i=0; i <= BANDMAX; i++){
-      vx.bandvfo[VFOA][i]=vx.loFreq[i]*1000;
-      vx.bandvfo[VFOB][i]=vx.loFreq[i]*1000;
-  }
-^*/
 }
 //*--------------------------------------------------------------------------------------------
 //* pinSetup
@@ -128,98 +113,7 @@ void pinSetup() {
   return;
 }  
 
-//*==============================================================================================================
-//* Set DDS Frequency fur SI5351 
-//* Receive frequency to set expressed in KHz
-//*==============================================================================================================
-void setDDSFreq () {
 
- 
- 
- unsigned long f2;
- unsigned long f3;
- unsigned long f4;
- unsigned long f5;
- unsigned long div2;
- unsigned int Divider2;
- unsigned int rdiv;
-
-//*---- Resolve correct counter setup (recover FI shift from menu)
-
- unsigned long FI=0;
-
-//*----- FI Displacemente
-
- if (mod.get()>0) {
-    FI=shf.get()*4;
- } 
-
-//*---- Set DDS with new frequency
- long int fDDS=vx.get(vx.vfoAB)/1000;
-
-
-#if DEBUG 
- sprintf(hi,"DDS frequency= %ld FI=%ld mod(%d) shf.get=%d",fDDS,FI,mod.get(),shf.get());
- Serial.println(hi);
-#endif
-
- if (fDDS > 0) {
-  
-    f2=(fDDS-FI);
-    if (f2<VFO_PLL_LOWER) {
-       rdiv = 16;
-       f2 = f2 * 16;
-    }  else {
-       rdiv = 1;
-    }
-
- //*---- Set DDS divisor
- 
- div2 = 900000000/f2;
- f4 = div2/1000;
- f5=div2-(f4*1000);
- clkVFO.setupMultisynth(1, SI5351_PLL_A, f4, f5,VFO_PLL_LOWER);
-
-//*--- Set additional divisor
- 
- if (rdiv == 16) {
-    clkVFO.setupRdiv(1, SI5351_R_DIV_16);
- }
- if (rdiv == 1) {
-    clkVFO.setupRdiv(1, SI5351_R_DIV_1);
- }
-}
-}
-//*---------------------------------------------------------------------------------------------
-//*
-//*---------------------------------------------------------------------------------------------
-void debugPrint(char* m){
-
-
-#if DEBUG
-
-   sprintf(hi,"<%s> vfoAB=%u vfo.get()=%u",m,vx.vfoAB,vfo.mItem);
-   Serial.println(hi);
-
-   sprintf(hi,"<%s> vfoband->[A]=%u  [B]=%u band.get()=%u %s %s",m,vx.vfoband[VFOA],vx.vfoband[VFOB],band.mItem,band.getText(0),band.getCurrentText());
-   Serial.println(hi);
-
-   sprintf(hi,"<%s> vfostep->[A]=%u  [B]=%u  stp.get()=%u",m,vx.vfostep[VFOA],vx.vfostep[VFOB],vx.step2code(stp.mItem));
-   Serial.println(hi);
-
-   sprintf(hi,"<%s> VFOA=%ld VFOB=%ld",m,vx.get(VFOA),vx.get(VFOB));
-   Serial.println(hi);
-
-   sprintf(hi,"<%s> A/B=%d band=%d",m,vx.vfoAB,band.get());
-   Serial.println(hi);
-
-   Serial.println("--<eof>--");
-
-#endif
-   
-   return;
-  
-}
 //*--------------------------------------------------------------------------------------------
 //* savesinpleA
 //* save specifics of sinpleA
@@ -227,8 +121,6 @@ void debugPrint(char* m){
 void saveMenu() {
 
    if (vx.vfoAB != vfo.mItem) {   //Switch from VFO A to B or viceversa
-      debugPrint((char*)"VFO Change Entry");
-      
       vx.vfoAB=vfo.mItem;
       
       band.mItem=(vx.vfoband[vx.vfoAB]);
@@ -236,39 +128,21 @@ void saveMenu() {
       
       stp.mItem=(vx.step2code(vx.vfostep[vx.vfoAB]));
       StepUpdate();
-      
-      //vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
-
-      debugPrint((char*)"VFO Change Exit");
        
    } else {
 
       if (vx.vfoband[vx.vfoAB]!=band.mItem) { //Switch Band
-         debugPrint((char*)"BAND Change Entry"); 
          vx.vfoband[vx.vfoAB]=band.mItem;
-       
-/*            if ((vx.get(vx.vfoAB])>=vx.loFreq[band.mItem]*1000) && (vx.get(vx.vfoAB)<=vx.hiFreq[band.mItem]*1000)) {
-
-            } else {
-              vx.set(vx.vfoAB,vx.loFreq[band.mItem]*1000);  //* solo altera la frecuencia si resulta que es distinto
-            }
-*/            
-          vx.set(vx.vfoAB,vx.loFreq[vx.vfoband[vx.vfoAB]]*1000);
-          debugPrint((char*)"BAND Change Exit"); 
-   
+         vx.set(vx.vfoAB,vx.loFreq[vx.vfoband[vx.vfoAB]]*1000);
     }
 
          if (vx.vfostep[vx.vfoAB]!=vx.code2step(stp.mItem)) { //Change tuning step
-            debugPrint((char*)"STEP Change Entry");
             vx.vfostep[vx.vfoAB]=vx.code2step(stp.mItem);
-            debugPrint((char*)"STEP Change Exit"); 
          }
    }
 
    vx.setVFOLimit(vx.vfoAB,vx.loFreq[band.mItem]*1000,vx.hiFreq[band.mItem]*1000);
    vx.set(vx.vfoAB,vx.get(vx.vfoAB));
-   
-   //vx.changeVFO();
 
 }
 //*--------------------------------------------------------------------------------------------
@@ -332,8 +206,7 @@ void ShiftUpdate() {
   shf.l.get(0)->mText=s;
   shf.CW=false;
   shf.CCW=false;
-  
-  //showPanel();
+ 
   return;
 }
 //*--------------------------------------------------------------------------------------------
@@ -504,14 +377,7 @@ void showMode() {
 //*--------------------------------------------------------------------------------------------
 void showLock() {
 
-/*
-  lcd.setCursor(10,1);
-  if (lck.mItem==0) {
-    lcd.print(" ");
-  } else {
-    lcd.print("X");
-  }
-*/  
+ //*-- Not associating a symbol at the LCD panel for lock, just the "x" when tuning
  
 };     
 //*--------------------------------------------------------------------------------------------
@@ -519,10 +385,12 @@ void showLock() {
 //* Write specific configuration
 //*--------------------------------------------------------------------------------------------
 void showGUI(){
+  
       showBand();
       showLock();
       showMode();
       return;
+
 }
 //*--------------------------------------------------------------------------------------------
 //* checkBandLimit
@@ -594,19 +462,8 @@ void setFrequencyHook(long int f,FSTR* v) {
 void setSysOM(){
   
   setWord(&USW,CONX,false);
-
-//===================================================================================
-//* SI5351 DDS  module initialization and setup
-//=================================================================================== 
-  if (clkVFO.begin() != ERROR_NONE)
-  {
-     setWord(&USW,CONX,false);
-  } else {
-     setWord(&USW,CONX,true);    
-  }
+  DDSInit();
   
-  clkVFO.enableOutputs(true);
-  clkVFO.setupPLL(SI5351_PLL_A, 36, 0, 1000); //900 MHz 
 
   return;
 }
