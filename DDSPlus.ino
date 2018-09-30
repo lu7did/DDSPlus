@@ -42,8 +42,8 @@
 //*-------------------------------------------------------------------------------------------------------
 
 #define DEBUG         false
-#define PICOFM        false
-#define SINPLEA       true
+#define PICOFM        true
+#define SINPLEA       false
 
 
 //*-------- Copyright and Program Build information
@@ -99,7 +99,14 @@
 
 //*----- EEPROM signature
 
+#if SINPLEA
 #define EEPROM_COOKIE  0x1f
+#endif
+
+#if PICOFM
+#define EEPROM_COOKIE  0x0f
+#endif
+
 #define EEPROM_RESET   false
 #define SAVE_TIME      2000
 
@@ -303,8 +310,9 @@ pinSetup();
   vx.setVFOLimit(VFOB,VFO_START,VFO_END);
 
   vx.setVFO(VFOA);
+#ifdef setDDSFreq  
   vx.setVFOdds(setDDSFreq);
-
+#endif
   //*ft817.v=vx;
  
 //*--- Interrupt manipulation
@@ -400,13 +408,6 @@ pinSetup();
 
             vx.vfoAB = EEPROM.read(15);        
             vfo.set(EEPROM.read(26));
-            
-            
-            if ((EEPROM.read(18) >= FI_LOW) && (EEPROM.read(18)<= FI_HIGH)) {
-              shf.set(EEPROM.read(18));
-            } else {
-              shf.set(FI_LOW);   
-            }
             
             vx.vfostep[VFOA]=vx.code2step(EEPROM.read(32));
             vx.vfostep[VFOB]=vx.code2step(EEPROM.read(33));            
@@ -507,8 +508,13 @@ void showFreq() {
   long int f=vx.get(vx.vfoAB); 
   vx.computeVFO(f,&v);
 
+#if DEBUG
+
   sprintf(hi,"showFreq f=%ld",f);
   Serial.println(hi);
+
+#endif
+
 
 //*---- Prepare to display
   lcd.setCursor(2, 1);
@@ -796,10 +802,6 @@ void doSave() {
       delay(DELAY_SAVE);
 
       
-      byte i=menuRoot.get();
-      MenuClass* z=menuRoot.l.get(i)->mChild;
-      byte j=z->mItem;
-      byte k=z->mItemBackup;
 
 //**************************************************
 //* Device specific parameter saving               *
@@ -1214,7 +1216,7 @@ void serialEvent() {
 //* callback to CAT API
 //*------------------------------------------------------------------------------------------------------
 void catAPI(){
-  CATHook();
+     CATHook();
 }
 //*****************************************************************************************************
 //*                               Manages Meter
@@ -1471,7 +1473,6 @@ void storeMEM() {
   EEPROM.write(14, v.ones);
 
   EEPROM.write(15, vx.vfoAB);
-  EEPROM.write(18,shf.get());
 
 //*-----  
   
@@ -1487,34 +1488,6 @@ void storeMEM() {
   EEPROM.write(30,vx.vfoband[VFOA]);
   EEPROM.write(31,vx.vfoband[VFOB]);  
 
-//*--- store band information
-
-/*
-  byte b[4];  
-  for (int i=0; i <= BANDMAX; i++){
-      
-      b[0]=(byte)vx.bandvfo[VFOA][i];
-      b[1]=(byte)vx.bandvfo[VFOA][i]>>8;
-      b[2]=(byte)vx.bandvfo[VFOA][i]>>16;
-      b[3]=(byte)vx.bandvfo[VFOA][i]>>24;
-      
-      EEPROM.write( ((i*8)+0)+40,b[0]);
-      EEPROM.write( ((i*8)+1)+40,b[1]);
-      EEPROM.write( ((i*8)+2)+40,b[2]);
-      EEPROM.write( ((i*8)+3)+40,b[3]);
-      
-      b[0]=(byte)vx.bandvfo[VFOB][i];
-      b[1]=(byte)vx.bandvfo[VFOB][i]>>8;
-      b[2]=(byte)vx.bandvfo[VFOB][i]>>16;
-      b[3]=(byte)vx.bandvfo[VFOB][i]>>24;
-      
-      EEPROM.write( ((i*8)+4)+40,b[0]);
-      EEPROM.write( ((i*8)+5)+40,b[1]);
-      EEPROM.write( ((i*8)+6)+40,b[2]);
-      EEPROM.write( ((i*8)+7)+40,b[3]);
-
-  }
-*/
  
 //*---- Module dependent implementation
 

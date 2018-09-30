@@ -360,9 +360,13 @@ void VFOSystem::updateVFO(byte VFO,long int vstep) {
    
    vfo[VFO]=vfo[VFO]+vstep;
 
+#if DEBUG
+
    char hi[80];   
    sprintf(hi,"updateVFO VFO(%d) vfo=%ld rxa=%ld min=%ld max=%ld",VFO,vfo[VFO],_rxa[VFO],vfomin[VFO],vfomax[VFO]);
    Serial.println(hi);
+
+#endif
    
    if (vfo[VFO] > vfomax[VFO]) {
        vfo[VFO] = vfomax[VFO];

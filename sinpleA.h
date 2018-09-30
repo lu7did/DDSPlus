@@ -327,7 +327,13 @@ void readEEPROM(){
 
      if ((b>=0) && (b<=1)){lck.set(b);}
      if ((c>=0) && (c<=1)){mod.set(b);}
- 
+             
+     if ((EEPROM.read(18) >= FI_LOW) && (EEPROM.read(18)<= FI_HIGH)) {
+        shf.set(EEPROM.read(18));
+     } else {
+        shf.set(FI_LOW);  
+     }
+
      return;
 }    
 

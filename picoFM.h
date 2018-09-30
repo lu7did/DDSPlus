@@ -17,6 +17,7 @@
 #define SERIAL_MAX      16
 #define VOLUME           5
 
+
 #define HPF 0
 #define LPF 0
 #define PRE 0
@@ -34,6 +35,9 @@
 #define VFO_STEP_10KHz      10000
 #define VFO_STEP_5KHz        5000
 #define VFO_STEP_1MHZ     1000000
+
+#define VFO_BAND_START  0
+#define VFO_BAND_END    0
 
 //*--------------------------------------------------------------------------------------------------
 //* Definitions to manage DRA818V
@@ -60,7 +64,17 @@ void  doSetGroup();
 void setWord(byte* SysWord,byte v, boolean val);
 boolean getWord (byte SysWord, byte v); 
 
-
+void  doSetPower();
+void  doSetPD();
+void  showPanel();
+void  showPwr();
+void  showRpt();
+void  showCTC();
+void  showDog();
+void  showSQL();
+void  showPTT();     
+void  showSPD();
+void  showDRF();
 
 #define PWRMENU 0
 #define RPTMENU 1
@@ -179,11 +193,31 @@ byte RX[8] = {
   B10001,
   B11111,
 };
+/*
+void setDDSFreq(){
 
-void defineMenu(){
-  //*============================================================================================
+  //* dummy hook
+}
+*/
+//*============================================================================================
 //* Define master menu and lower level tree for picoFM
 //*============================================================================================
+void checkBandLimit() {
+
+  //*---- Dummy hook
+}
+//*============================================================================================
+//* Define master menu and lower level tree for picoFM
+//*============================================================================================
+void CATHook() {
+
+  //*---- Dummy hook
+}
+//*============================================================================================
+//* Define master menu and lower level tree for picoFM
+//*============================================================================================
+void defineMenu(){
+
 //*---- Setup Master system menus
 
   menuRoot.add((char*)"Power",&pwr);
@@ -267,6 +301,12 @@ void pinSetup() {
 //*--------------------------------------------------------------------------------------------
 void saveMenu() {
 
+
+      byte i=menuRoot.get();
+      MenuClass* z=menuRoot.l.get(i)->mChild;
+      byte j=z->mItem;
+      byte k=z->mItemBackup;
+
       //*--- Detect changes that needs to be reflected thru commands to the ChipSet
       if ( (menuRoot.get() == PWRMENU) && (j!=k)) {doSetPower();}
       if ( (menuRoot.get() == SPDMENU) && (j!=k)) {doSetPD();}
@@ -304,6 +344,7 @@ void CTCSSUpdate() {
   switch(ctc.mItem) {
     case 0:                          {s=(char*)"Off";break;};                            
     case 1:                          {s=(char*)"67.0";break;};
+/*    
     case 2:                          {s=(char*)"71.9";break;};
     case 3:                          {s=(char*)"74.4";break;};
     case 4:                          {s=(char*)"77.0";break;};
@@ -341,7 +382,7 @@ void CTCSSUpdate() {
     case 36:                         {s=(char*)"233.6";break;};
     case 37:                         {s=(char*)"241.8";break;};                             
     case 38:                         {s=(char*)"250.3";break;};
-   
+ */  
   }
   
   ctc.l.get(0)->mText=s;
@@ -551,6 +592,8 @@ void doSetPD() {
    
 }
 void handleSerialCommand() {
+  
+
     while (Serial.available() && pQueue<=(QUEUEMAX)-1) {
       
       char inChar = (char)Serial.read();                //get new character from Serial port
@@ -672,6 +715,7 @@ void handleSerialCommand() {
          serialQueue[pQueue]=0x00;
          inState=1;
       }
+}
 }
 
 void handleTimerHook(){
