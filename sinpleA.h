@@ -49,6 +49,9 @@ void ModUpdate();
 void showBand();
 void showDDS();
 
+void showPanel();
+void showFreq();
+
 void setWord(byte* SysWord,byte v, boolean val);
 boolean getWord (byte SysWord, byte v);
 
@@ -109,7 +112,6 @@ void defineMenu(){
   
   mod.add((char*)"DDS",NULL);
   mod.set(0);
-  
 
 /*
   for (int i=0; i <= BANDMAX; i++){
@@ -195,22 +197,22 @@ void debugPrint(char* m){
 
 #if DEBUG
 
-   sprintf(hi,"<%s> vfoAB=%u vfo.get()=%u",m,vx.vfoAB,vfo.mItem);
-   Serial.println(hi);
+   //sprintf(hi,"<%s> vfoAB=%u vfo.get()=%u",m,vx.vfoAB,vfo.mItem);
+   //Serial.println(hi);
 
-   sprintf(hi,"<%s> vfoband->[A]=%u  [B]=%u band.get()=%u %s %s",m,vx.vfoband[VFOA],vx.vfoband[VFOB],band.mItem,band.getText(0),band.getCurrentText());
-   Serial.println(hi);
+   //sprintf(hi,"<%s> vfoband->[A]=%u  [B]=%u band.get()=%u %s %s",m,vx.vfoband[VFOA],vx.vfoband[VFOB],band.mItem,band.getText(0),band.getCurrentText());
+   //Serial.println(hi);
 
-   sprintf(hi,"<%s> vfostep->[A]=%u  [B]=%u  stp.get()=%u",m,vx.vfostep[VFOA],vx.vfostep[VFOB],vx.step2code(stp.mItem));
-   Serial.println(hi);
+   //sprintf(hi,"<%s> vfostep->[A]=%u  [B]=%u  stp.get()=%u",m,vx.vfostep[VFOA],vx.vfostep[VFOB],vx.step2code(stp.mItem));
+   //Serial.println(hi);
 
-   sprintf(hi,"<%s> VFOA=%ld VFOB=%ld",m,vx.get(VFOA),vx.get(VFOB));
-   Serial.println(hi);
+   //sprintf(hi,"<%s> VFOA=%ld VFOB=%ld",m,vx.get(VFOA),vx.get(VFOB));
+   //Serial.println(hi);
 
-   sprintf(hi,"<%s> bandvfo[%u][%u]=%ld",m,vx.vfoAB,band.get(),vx.bandvfo[vx.vfoAB][vx.vfoband[vx.vfoAB]]);
-   Serial.println(hi);
+   //sprintf(hi,"<%s> A/B=%d band=%d",m,vx.vfoAB,band.get());
+   //Serial.println(hi);
 
-   Serial.println("--<eof>--");
+   //Serial.println("--<eof>--");
 
 #endif
    
@@ -559,8 +561,8 @@ void setFrequencyHook(long int f,FSTR* v) {
 #if DEBUG  
   sprintf(hi,"Frequency %ld",f);
   Serial.println(hi);
-  sprintf(hi,"FrequencyDDS %ld",fDDS);
-  Serial.println(hi);
+  //sprintf(hi,"FrequencyDDS %ld",fDDS);
+  //Serial.println(hi);
 #endif
     
 //*******************************
@@ -623,6 +625,81 @@ void showVFOHook(){
   return;
 }
 
+
+//*--------------------------------------------------------------------------------------------
+//* CATHook
+//* Hook for the CAT command processing API
+//*--------------------------------------------------------------------------------------------
+void CATHook(){
+
+byte b[4];
+unsigned long fx=0;
+unsigned long k=0;
+
+APISTR a=ft817.a;
+
+sprintf(hi,"Entering Hook Processing");
+Serial.println(hi);
+
+
+switch(a.cmd) {
+
+  case 0x00   :{
+               //Serial.println("CAT Command 0x00 (LOCK) -- N/I");
+              //*--- Must return 0x00 if not locked 0xf0 if locked, as locked is not supported return always CAT_LOCKED
+              a.rc=0x00;
+              return;
+              }
+  case 0x01   : {//Process CAT FREQ (OK)
+               //Serial.println("CAT Command 0x01 (FREQ)");
+               fx=0;
+               k =1000000;
+               for (int i=0;i<4;i++) {
+                   b[i]=bcd2byte(a.bCAT[i]);
+                   fx=fx+(b[i]*k);
+                   k=k/100;
+               }  
+               
+               ft817.a.r=false;             //* This command won't require answer, block it
+               byte bx=vx.findBand(fx*10);
+               if (bx!=band.mItem) {
+                   band.mItem=bx;
+                   saveMenu();
+                   BandUpdate();
+                   showPanel();
+                   showFreq();
+               }
+               vx.set(vx.vfoAB,fx*10);
+               return;
+               }
+case 0x03  : {
+                //Serial.println("CAT Command 0x03 (READ STATUS)"); (OK)
+                //* Return 5 bytes with status XX XX XX XX 01
+                /* CALLBACK Band Status*/
+                //*----> fx=v.get(v.vfoAB)/10;
+                //fx=vfo[bandMenu.mItem][vfoMenu.mItem]/10;
+                fx=vx.get(vx.vfoAB)/10;
+                k=1000000;
+                unsigned long j=0;
+                for (int i=0;i<4;i++) {
+                   j=fx/k;
+                   b[i]=byte2bcd((byte)j);
+                   fx=fx-(j*k);
+                   k=k/100;
+                   ft817.sendCAT(b[i]);                   
+                 }  
+                ft817.sendCAT(0x01);
+                ft817.a.r=false;             //* This command won't require answer, block it
+                return;
+                }
+}
+
+//*--------------------------------------------------------------------------------------------
+//* Default return from processing
+//*--------------------------------------------------------------------------------------------
+a.rc=0x00;
+return;
+}
 
 #endif
 

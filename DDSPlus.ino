@@ -158,7 +158,8 @@ VFOSystem vx(showFreq,NULL,NULL,NULL);
 //*-------------------------------------------------------------------------------------------------
 //* Define class to manage CAT
 //*-------------------------------------------------------------------------------------------------
-CATSystem ft817(NULL);
+void catAPI();
+CATSystem ft817(catAPI);
 
 //*--------------------------------------------------------------------------------------------
 //*---- Definitions for various LCD display shields
@@ -1197,12 +1198,20 @@ void checkPriority() {
 //*------------------------------------------------------------------------------------------------------
 void serialEvent() {
   
- while (Serial.available() && ft817.isQueueFull()) {
+ while (Serial.available() && !ft817.isQueueFull()) {
       char inChar = (char)Serial.read();                //get new character from Serial port
+      sprintf(hi,"Recibido byte[%c]",inChar);
+      Serial.println(hi);
       ft817.addQueue(inChar);    //add to Queue
   }
   
   
+}
+//*------------------------------------------------------------------------------------------------------
+//* callback to CAT API
+//*------------------------------------------------------------------------------------------------------
+void catAPI(){
+  CATHook();
 }
 //*****************************************************************************************************
 //*                               Manages Meter

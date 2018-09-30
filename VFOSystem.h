@@ -64,6 +64,7 @@ class VFOSystem
       void setVFOStep(byte VFO,long int stepVFO);
       void setVFOLimit(byte VFO,long int fMIN, long int fMAX);
       void setVFOBand(byte VFO,byte band);
+      byte findBand(long int f);
 
   
       
@@ -150,6 +151,21 @@ void VFOSystem::setVFOdds(CALLBACK d) {
   if (d!=NULL) {changeDDS=d;}   //* Callback of DDS change
 
   return;
+}
+//*---------------------------------------------------------------------------------------------------
+//* Given the frequency find the band
+//*---------------------------------------------------------------------------------------------------
+byte VFOSystem::findBand(long int f) {
+
+ for (int i=1; i <= BANDMAX; i++){
+
+   if ( (f>=loFreq[i]*1000) && (f<=hiFreq[i]*1000)){
+      return i;
+   }
+ }
+
+ return 0;
+  
 }
 //*---------------------------------------------------------------------------------------------------
 //* Set the parameters of a given VFO step

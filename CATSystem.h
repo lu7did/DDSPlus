@@ -11,12 +11,11 @@
 #include "Arduino.h"
 
 typedef struct {
-  char* Q;
-  byte* p;
-  byte  QMAX;
-  byte* bufferCAT;
-  byte* pCAT;
-  byte* rc;
+  byte    cmd;
+  byte*   bCAT;
+  byte*   pCAT;
+  byte    rc;
+  boolean r;
 } APISTR;
 
 typedef void (*CALLBACK)();
@@ -44,7 +43,7 @@ int uppercase (int charbytein);
 class CATSystem
 {
   public:   
-      CATSystem(CALLBACK s);
+      CATSystem(CALLBACK a);
       void addQueue(char c);
       char getQueue();
       void analyzeCAT();
@@ -120,9 +119,9 @@ processQueue();
 boolean CATSystem::isQueueFull(){
   
   if (pQueue<=(QUEUEMAX)-1){
-     return true;
+     return false;
   } else {
-    return false;   
+    return true;   
   }
 }
 
@@ -210,6 +209,7 @@ void CATSystem::processQueue() {
 
   return;  
 }
+
 //*--------------------------------------------------------------------------------------------
 //* analyzeCAT()
 //* Parse CAT sequence and store buffer
@@ -220,6 +220,30 @@ byte rc;
 byte b[4];
 unsigned long fx=0;
 unsigned long k=0;
+
+a.cmd=bufferCAT[CATMAX-1];
+
+a.rc=0x00;
+a.bCAT=bufferCAT;
+a.pCAT=&pCAT;
+a.r=true;
+
+if (hook!=NULL) {
+  hook();
+} else {
+  clearCAT();
+  return;
+}
+
+ //*----- Send CAT response and clear command area
+ 
+ if (a.r==true){
+    sendCAT(a.rc);
+ }
+ 
+ clearCAT();
+ return;
+
 
 
  switch(bufferCAT[CATMAX-1]) {
@@ -580,9 +604,9 @@ void CATSystem::clearCAT() {
 void CATSystem::sendCAT(byte m){
 
 #if DEBUGCAT
+  
   char h[40];
-
-  sprintf(h,"[%x]",m);
+  sprintf(h,"Sending [%x]",m);
   Serial.println(h);
 
 #endif
