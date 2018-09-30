@@ -48,7 +48,7 @@
 
 //*-------- Copyright and Program Build information
 
-#define PROG_BUILD  "045"
+#define PROG_BUILD  "070"
 #define COPYRIGHT "(c) LU7DID 2018"
 
 
@@ -132,6 +132,7 @@
 #include "MemSizeLib.h"
 #include "VFOSystem.h"
 #include "ClassMenu.h"
+#include "CATSystem.h"
 
 //*---- Debug buffer
 char hi[80];
@@ -146,11 +147,18 @@ void  Encoder_san();
 //*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 MenuClass menuRoot(NULL);
 
+
+
 //*-------------------------------------------------------------------------------------------------
 //* Define class to manage VFO
 //*-------------------------------------------------------------------------------------------------
 void showFreq();                       //Prototype fur display used on callback
 VFOSystem vx(showFreq,NULL,NULL,NULL);
+
+//*-------------------------------------------------------------------------------------------------
+//* Define class to manage CAT
+//*-------------------------------------------------------------------------------------------------
+CATSystem ft817(NULL);
 
 //*--------------------------------------------------------------------------------------------
 //*---- Definitions for various LCD display shields
@@ -295,6 +303,8 @@ pinSetup();
 
   vx.setVFO(VFOA);
   vx.setVFOdds(setDDSFreq);
+
+  //*ft817.v=vx;
  
 //*--- Interrupt manipulation
 //#if LCD_STANDARD
@@ -500,12 +510,9 @@ void showFreq() {
   Serial.println(hi);
 
 //*---- Prepare to display
-  
-  if (v.millions > 9) {
-    lcd.setCursor(2, 1);
-  }
-  else {
-    lcd.setCursor(3, 1);
+  lcd.setCursor(2, 1);
+  if (v.millions <10) {
+    lcd.print(" ");
   }
   
   lcd.print(v.millions);
@@ -853,7 +860,7 @@ void processVFO() {
        } else {
           vx.updateVFO(vx.vfoAB,0);      
           lcd.setCursor(0,1);
-          lcd.print("X");
+          lcd.print((char)183);
        }
    
    }
@@ -867,7 +874,7 @@ void processVFO() {
        } else {
           vx.updateVFO(vx.vfoAB,0);
           lcd.setCursor(0,1);
-          lcd.print("X");
+          lcd.print((char)183);
        }
    
    }
@@ -1189,8 +1196,12 @@ void checkPriority() {
 //* serialEvent is called when a serial port related interrupt happens
 //*------------------------------------------------------------------------------------------------------
 void serialEvent() {
-
-  handleSerialCommand();
+  
+ while (Serial.available() && ft817.isQueueFull()) {
+      char inChar = (char)Serial.read();                //get new character from Serial port
+      ft817.addQueue(inChar);    //add to Queue
+  }
+  
   
 }
 //*****************************************************************************************************
@@ -1498,47 +1509,6 @@ void storeMEM() {
   writeEEPROM();
   memstatus = 1;  // Let program know memory has been written
 };
-
-#if DEBUG
-//*------------------------------------------------------------------------------------------------------
-//* utility to convert a string with a Hex number ('0xnn') into an actual Hex number (0xnn)
-//*------------------------------------------------------------------------------------------------------
-int x2i(String Hex) 
-{
- int x = 0;
- for (int i=0; i <= Hex.length()-1; i++) {
- 
-   char c = Hex[i];
-   c=uppercase(c);
-   if (c >= '0' && c <= '9') {
-      x *= 16;
-      x += c - '0'; 
-   }
-   else if (c >= 'A' && c <= 'F') {
-      x *= 16;
-      x += (c - 'A') + 10; 
-   }
-   else break;
- }
- return x;
-}
-//*------------------------------------------------------------------------------------------------------
-//* Encode a decimal (byte) number into BCD cambiar a bcd_encode
-//*------------------------------------------------------------------------------------------------------
-uint8_t byte2bcd(uint8_t bx)
-{
-  return (bx/10)*16 + (bx%10);
-}
-
-//*------------------------------------------------------------------------------------------------------
-//* Decode a BCD coded number back to an integer
-//*------------------------------------------------------------------------------------------------------
-byte bcd2byte(byte bcd) {
-
-    return (((bcd >> 4)*10)+(bcd & 0xf));
-  
-}
-#endif
 
 //*-------------------------------------------------------------------------------------------------------
 //* uppercase a character 

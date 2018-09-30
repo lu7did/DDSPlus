@@ -472,7 +472,7 @@ void writeEEPROM() {
 //*--------------------------------------------------------------------------------------------
 void showBand() {
 
-  lcd.setCursor(6,0);
+  lcd.setCursor(8,0);
   lcd.print(String(band.getCurrentText()));
  
 };      
@@ -482,11 +482,11 @@ void showBand() {
 //*--------------------------------------------------------------------------------------------
 void showMode() {
 
-  lcd.setCursor(12,1);
-  if (lck.mItem==0) {
-    lcd.print("dds");
+  lcd.setCursor(12,0);
+  if (mod.mItem==0) {
+    lcd.print("D");
   } else {
-    lcd.print("vfo");
+    lcd.print("V");
   }
   
  
@@ -497,13 +497,14 @@ void showMode() {
 //*--------------------------------------------------------------------------------------------
 void showLock() {
 
+/*
   lcd.setCursor(10,1);
   if (lck.mItem==0) {
     lcd.print(" ");
   } else {
     lcd.print("X");
   }
-  
+*/  
  
 };     
 //*--------------------------------------------------------------------------------------------
@@ -616,7 +617,7 @@ void handleTimerHook(){
 //*--------------------------------------------------------------------------------------------
 void showVFOHook(){
   lcd.setCursor(0,0);
-  lcd.print("Vfo");
+  //lcd.print("Vfo");
   if (vfo.get()==VFOA){lcd.print("A");} else {lcd.print("B");}
   //lcd.print("");
   return;
