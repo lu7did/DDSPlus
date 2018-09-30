@@ -1200,9 +1200,12 @@ void serialEvent() {
   
  while (Serial.available() && !ft817.isQueueFull()) {
       char inChar = (char)Serial.read();                //get new character from Serial port
+      ft817.addQueue(inChar);    //add to Queue
+#if DEBUG      
       sprintf(hi,"Recibido byte[%c]",inChar);
       Serial.println(hi);
-      ft817.addQueue(inChar);    //add to Queue
+#endif      
+
   }
   
   

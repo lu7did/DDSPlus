@@ -158,9 +158,10 @@ void setDDSFreq () {
  long int fDDS=vx.get(vx.vfoAB)/1000;
 
 
- //*---- trace code make into DEBUG later
+#if DEBUG 
  sprintf(hi,"DDS frequency= %ld FI=%ld mod(%d) shf.get=%d",fDDS,FI,mod.get(),shf.get());
  Serial.println(hi);
+#endif
 
  if (fDDS > 0) {
   
@@ -197,22 +198,22 @@ void debugPrint(char* m){
 
 #if DEBUG
 
-   //sprintf(hi,"<%s> vfoAB=%u vfo.get()=%u",m,vx.vfoAB,vfo.mItem);
-   //Serial.println(hi);
+   sprintf(hi,"<%s> vfoAB=%u vfo.get()=%u",m,vx.vfoAB,vfo.mItem);
+   Serial.println(hi);
 
-   //sprintf(hi,"<%s> vfoband->[A]=%u  [B]=%u band.get()=%u %s %s",m,vx.vfoband[VFOA],vx.vfoband[VFOB],band.mItem,band.getText(0),band.getCurrentText());
-   //Serial.println(hi);
+   sprintf(hi,"<%s> vfoband->[A]=%u  [B]=%u band.get()=%u %s %s",m,vx.vfoband[VFOA],vx.vfoband[VFOB],band.mItem,band.getText(0),band.getCurrentText());
+   Serial.println(hi);
 
-   //sprintf(hi,"<%s> vfostep->[A]=%u  [B]=%u  stp.get()=%u",m,vx.vfostep[VFOA],vx.vfostep[VFOB],vx.step2code(stp.mItem));
-   //Serial.println(hi);
+   sprintf(hi,"<%s> vfostep->[A]=%u  [B]=%u  stp.get()=%u",m,vx.vfostep[VFOA],vx.vfostep[VFOB],vx.step2code(stp.mItem));
+   Serial.println(hi);
 
-   //sprintf(hi,"<%s> VFOA=%ld VFOB=%ld",m,vx.get(VFOA),vx.get(VFOB));
-   //Serial.println(hi);
+   sprintf(hi,"<%s> VFOA=%ld VFOB=%ld",m,vx.get(VFOA),vx.get(VFOB));
+   Serial.println(hi);
 
-   //sprintf(hi,"<%s> A/B=%d band=%d",m,vx.vfoAB,band.get());
-   //Serial.println(hi);
+   sprintf(hi,"<%s> A/B=%d band=%d",m,vx.vfoAB,band.get());
+   Serial.println(hi);
 
-   //Serial.println("--<eof>--");
+   Serial.println("--<eof>--");
 
 #endif
    
@@ -278,8 +279,12 @@ void BandUpdate() {
 
   char* s=(char*)"                  ";
 
-  //sprintf(hi,"BandUpdate ANTES band.mItem=%u %s",band.mItem,band.l.get(0)->mText);
-  //Serial.println(hi);
+#if DEBUG
+
+  sprintf(hi,"BandUpdate ANTES band.mItem=%u %s",band.mItem,band.l.get(0)->mText);
+  Serial.println(hi);
+  
+#endif
   
   if (band.mItem < BANDMAX && band.CW == true) {
       band.mItem++;
@@ -638,8 +643,10 @@ unsigned long k=0;
 
 APISTR a=ft817.a;
 
+#if DEBUG
 sprintf(hi,"Entering Hook Processing");
 Serial.println(hi);
+#endif
 
 
 switch(a.cmd) {
@@ -673,11 +680,8 @@ switch(a.cmd) {
                return;
                }
 case 0x03  : {
-                //Serial.println("CAT Command 0x03 (READ STATUS)"); (OK)
+                //Serial.println("CAT Command 0x03 (READ FREQUENCY and MODE)"); (OK)
                 //* Return 5 bytes with status XX XX XX XX 01
-                /* CALLBACK Band Status*/
-                //*----> fx=v.get(v.vfoAB)/10;
-                //fx=vfo[bandMenu.mItem][vfoMenu.mItem]/10;
                 fx=vx.get(vx.vfoAB)/10;
                 k=1000000;
                 unsigned long j=0;
@@ -692,6 +696,150 @@ case 0x03  : {
                 ft817.a.r=false;             //* This command won't require answer, block it
                 return;
                 }
+case 0x05   : { //Process CAT RIT ON/OFF command
+                //Serial.println("CAT Command 0x05 (RIT ON)");
+                ft817.a.rc=0x00;
+                ft817.a.r=true;
+                return;
+                }
+
+case 0x07  : { //Serial.println("CAT Command 0x07 (OPERATING MODE)");
+                ft817.a.rc=0x00;
+                ft817.a.r=false;
+                return;
+               }
+
+case 0x08   :{//Serial.println("CAT Command 0x08 (PTT ON)");
+              //*--- Must return 0x00 if not keyed 0xf0 if already keyed
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              return;              
+              }
+
+case 0x10   :{//Serial.println("CAT Command 0x10 (PTT STATUS) UNDOC");
+              //*--- Must return 0x00 if not keyed 0xf0 if already keyed
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              return;                     
+              }            
+
+case 0x80   :{
+               //Serial.println("CAT Command 0x80 (LOCK OFF)");
+              //*--- Must return 0x00 if already locked 0xf0 if not already locked
+              lck.mItem=0;
+              ft817.a.rc=0xf0;
+              ft817.a.r=true;
+              showPanel();
+              return;    
+              } 
+              
+case 0x81   :{//Serial.println("CAT Command 0x81 (TOGGLE VFOA/B)");
+              //*--- Toggle between VFO-A and VFO-B no response 
+              vx.swapVFO();
+              ft817.a.rc=0x00;
+              ft817.a.r=false;
+              return;
+              }            
+
+ case 0x82   :{//Serial.println("CAT Command 0x82 (SPLIT OFF)");
+              //*--- Must return 0x00 if already split 0xf0 if not already split
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              return;                     
+
+              }  
+
+case 0x85   :{//Serial.println("CAT Command 0x82 (RIT OFF)");
+              //*--- Must return 0x00 if already split 0xf0 if not already split
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              return;                     
+              }           
+
+case 0x88   :{//Serial.println("CAT Command 0x88 (PTT OFF)");
+              //*--- Must return 0x00 if already keyed 0xf0 if not already keyed
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              return;                     
+              }           
+
+case 0xa7   :{//Serial.println("CAT Command 0xa7 (Radio Configuration) UnDoc");
+              //*--- Return an area of data, fake answer based on recommendation from KA7OEI web page 
+              ft817.sendCAT(0xA7);
+              ft817.sendCAT(0x02);
+              ft817.sendCAT(0x00);
+              ft817.sendCAT(0x04);
+              ft817.sendCAT(0x67);
+              ft817.sendCAT(0xD8);
+              ft817.sendCAT(0xBF);
+              ft817.sendCAT(0xD8);
+              ft817.sendCAT(0xBF);
+              //*---    
+              ft817.clearCAT();
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              return;
+              }           
+case 0xba   :{
+               //Serial.println("CAT Command 0xba (Unknown) UnDoc");
+              //*--- Returns 0x00 
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              return;
+              }     
+case 0xbd   :{//Serial.println("CAT Command 0xbd (Read TX Meter) UnDoc");
+              //*--- Returns 0x00 on RX return [xx][yy] on TX with BCD encoding of PWR,VSWR,ALC,MOD 
+              ft817.sendCAT(0x00);  //* PWR & VSWR     --- TO BE IMPLEMENTED FROM METER SIGNAL --
+              ft817.sendCAT(0x00);  //* ALC & MOD 
+              ft817.clearCAT();
+              ft817.a.rc=0x00;
+              ft817.a.r=false;
+              return;
+              }               
+case 0xe7   :{//Serial.println("CAT Command 0xe7 (Read Receiver status)");
+              //*--- Returns [byte] with receiver status 
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              return;
+              }
+case 0xf5   :{
+               //Serial.println("CAT Command 0xf5 (Set clarifier status)");
+              //*--- receive [dir][x][10/1 KHz][100/10 Hz] 
+              ft817.a.rc=0x00;
+              ft817.a.r=false;
+              ft817.clearCAT();
+              return;
+              }              
+case 0xf7   :{//Serial.println("CAT Command 0xf7 (Read TX Status)");
+              //*--- return [byte] with status 
+              ft817.a.rc=0x00;
+              ft817.a.r=true;
+              ft817.clearCAT();
+              return;
+              }              
+
+ //*--- Several not implemented
+ case 0xf9:
+ case 0xbe:
+ case 0xbb:
+ case 0xbc:
+ case 0x8f:
+ case 0x0f:
+ case 0x09:
+ case 0x0a:
+ case 0x0b:
+              ft817.a.rc=0x00;
+              ft817.a.r=false;
+              ft817.clearCAT();
+              return;
+ 
+ default     : {
+              ft817.a.rc=0x00;
+              ft817.a.r=false;
+              ft817.shiftCAT(); 
+              return;
+               }  
+                
 }
 
 //*--------------------------------------------------------------------------------------------

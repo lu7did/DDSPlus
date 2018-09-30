@@ -179,7 +179,7 @@ void CATSystem::processQueue() {
       
       bufferCAT[pCAT]=(byte)x;
       pCAT++;
-
+      
       sprintf(h,"HEX(%x) Pos(%d)",x,pCAT);
       Serial.println(h);
 
@@ -609,6 +609,8 @@ void CATSystem::sendCAT(byte m){
   sprintf(h,"Sending [%x]",m);
   Serial.println(h);
 
+#else
+  Serial.println(m);
 #endif
 
 }
