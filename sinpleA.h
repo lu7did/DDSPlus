@@ -62,6 +62,7 @@ MenuClass lck(LckUpdate);
 MenuClass mod(ModUpdate);
 
 #include "DDS_SI5351.h"
+
 //*--------------------------------------------------------------------------------------------
 //* readEEPROM
 //* Read specific configuration

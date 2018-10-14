@@ -42,13 +42,13 @@
 //*-------------------------------------------------------------------------------------------------------
 
 #define DEBUG         false
-#define PICOFM        true
-#define SINPLEA       false
+#define PICOFM        false
+#define SINPLEA       true
 
 
 //*-------- Copyright and Program Build information
 
-#define PROG_BUILD  "075"
+#define PROG_BUILD  "080"
 #define COPYRIGHT "(c) LU7DID 2018"
 
 
@@ -297,8 +297,15 @@ pinSetup();
   delay(DELAY_DISPLAY);
   lcd.clear();
 
+//**********************************
+//* Device specific initialization *
+//**********************************
+  setSysOM();
+
 //*---- Define the VFO System parameters (Initial Firmware conditions)
- 
+
+  vx.setVFOdds(setDDSFreq);
+
   vx.setVFOBand(VFOA,VFO_BAND_START);
   vx.set(VFOA,VFO_START);
   vx.setVFOStep(VFOA,VFO_STEP_1KHz);
@@ -310,9 +317,7 @@ pinSetup();
   vx.setVFOLimit(VFOB,VFO_START,VFO_END);
 
   vx.setVFO(VFOA);
-#ifdef setDDSFreq  
-  vx.setVFOdds(setDDSFreq);
-#endif
+
   //*ft817.v=vx;
  
 //*--- Interrupt manipulation
@@ -455,10 +460,8 @@ pinSetup();
   setWord(&JSW,JUP,false);
   setWord(&JSW,JDOWN,false);
 
-//**********************************
-//* Device specific initialization *
-//**********************************
-  setSysOM();
+
+  //vx.updateVFO(vx.vfoAB,vx.vfo[vx.vfoAB]);
 
 //*=========================================================================================================
 #if DEBUG
@@ -666,6 +669,10 @@ void showDog() {
 //*--------------------------------------------------------------------------------------------
 void showDDS() {
 
+#if DEBUG
+  Serial.println("showDDS");
+#endif
+  
   lcd.setCursor(13,0);
   lcd.print("[");
   if (getWord(USW,CONX)==true) {lcd.print("*");} else {lcd.print(" ");}
@@ -708,6 +715,7 @@ void showPanel() {
 
 //*--- Device specific GUI builter
       showGUI();
+      showDDS();
 //*----           
       return;
    }

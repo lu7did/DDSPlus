@@ -36,14 +36,17 @@ void setDDSFreq () {
 //*---- Set DDS with new frequency
  long int fDDS=vx.get(vx.vfoAB)/1000;
 
-#if DEBUG 
+#if DEBUG
+
  sprintf(hi,"DDS frequency= %ld FI=%ld mod(%d) shf.get=%d",fDDS,FI,mod.get(),shf.get());
  Serial.println(hi);
+
 #endif
+
 
  if (fDDS > 0) {
   
-    f2=(fDDS-FI);
+    f2=(fDDS-FI)*4;
     if (f2<VFO_PLL_LOWER) {
        rdiv = 16;
        f2 = f2 * 16;
@@ -73,15 +76,30 @@ void setDDSFreq () {
 //----------------------------------------------------------------------------------- 
 void DDSInit(){ 
 
+#if DEBUG
+  
+  sprintf(hi,"DDS frequency= %ld FI=%ld mod(%d) shf.get=%d",fDDS,FI,mod.get(),shf.get());
+  Serial.println("DDSInit Executed");
+
+#endif
+  
   if (clkVFO.begin() != ERROR_NONE)
   {
      setWord(&USW,CONX,false);
   } else {
      setWord(&USW,CONX,true);    
   }
+
+#if DEBUG
   
+  sprintf(hi,"DDS frequency= %ld FI=%ld mod(%d) shf.get=%d",fDDS,FI,mod.get(),shf.get());
+  Serial.println("DDSInit clkVFO set");
+
+#endif
+    
   clkVFO.enableOutputs(true);
   clkVFO.setupPLL(SI5351_PLL_A, 36, 0, 1000); //900 MHz 
+  
   return;
   
 }

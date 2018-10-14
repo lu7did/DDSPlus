@@ -146,6 +146,9 @@ VFOSystem::VFOSystem(CALLBACK c,CALLBACK t,CALLBACK r,CALLBACK d)
   if (d!=NULL) {changeDDS=d;}   //* Callback of DDS change
  
 }
+//*---------------------------------------------------------------------------------------------------
+//* Create change frequency callback
+//*---------------------------------------------------------------------------------------------------
 void VFOSystem::setVFOdds(CALLBACK d) {
   
   if (d!=NULL) {changeDDS=d;}   //* Callback of DDS change
@@ -271,14 +274,23 @@ void VFOSystem::setVFOLimit(byte VFO,long int fMIN,long int fMAX) {
 //* Set the parameters of a given VFO Frequency
 //*---------------------------------------------------------------------------------------------------
 void VFOSystem::set(byte VFO,long int f) {
+  char hi[80];
   
   if (VFO<VFOA || VFO>VFOB) { return;}
-  
+
+#if DEBUG
+
+  sprintf(hi,"VFOSystem:set VFO(%d) f(%ld)",VFO,f);
+  Serial.println(hi);
+
+#endif  
   vfo[VFO]=f;
   _rxa[VFO]=f;
   
-  if (changeVFO!=NULL) {changeVFO();}
-  if (changeDDS!=NULL) {changeDDS();}
+  if (changeVFO!=NULL) {
+    changeVFO();}
+  if (changeDDS!=NULL) {
+     changeDDS();}
   getStr(VFO);
   resetVFO(VFO);
   
@@ -360,6 +372,7 @@ void VFOSystem::updateVFO(byte VFO,long int vstep) {
    
    vfo[VFO]=vfo[VFO]+vstep;
 
+
 #if DEBUG
 
    char hi[80];   
@@ -367,6 +380,7 @@ void VFOSystem::updateVFO(byte VFO,long int vstep) {
    Serial.println(hi);
 
 #endif
+
    
    if (vfo[VFO] > vfomax[VFO]) {
        vfo[VFO] = vfomax[VFO];
